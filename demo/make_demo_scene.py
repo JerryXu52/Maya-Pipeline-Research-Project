@@ -95,7 +95,7 @@ def build_character():
 
 
 def build_set():
-    ground = cmds.polyPlane(name="ground", width=4000, height=4000, subdivisionsX=10, subdivisionsY=10)[0]
+    ground = cmds.polyPlane(name="ground", width=20000, height=20000, subdivisionsX=10, subdivisionsY=10)[0]
     paint(ground, lambert("ground_mat", (0.72, 0.80, 0.55)))
     looks.assign("painted_ground", [ground])
 
@@ -151,6 +151,7 @@ def build_camera_and_lights():
     cam = cmds.rename(cam, "shotCam")
     shape = cmds.listRelatives(cam, shapes=True)[0]
     cmds.setAttr(shape + ".filmFit", 1)
+    cmds.setAttr(shape + ".farClipPlane", 100000)
     # slow arc around the character, then a push in
     key(cam, "translateX", [(1, -230), (40, -120), (72, 40)])
     key(cam, "translateY", [(1, 110), (72, 85)])
