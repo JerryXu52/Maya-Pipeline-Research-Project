@@ -6,7 +6,10 @@ Toon Bridge is a Maya panel. You tag objects with toon looks built in Blender's
 node editor, press **Render**, and a background copy of Blender renders the shot
 with EEVEE. The cel-shaded frames come back into Maya.
 
-**▶ Demo video (1–3 min): VIDEO_LINK_HERE**
+**▶ Demo video: [docs/video/toon_bridge_demo.mp4](docs/video/toon_bridge_demo.mp4)** (42 s, rendered by the tool:
+Maya render vs Toon Bridge side by side, 3D hull vs 2D ink lines, look library, camera match)
+
+**▶ Screen recording of the tool in Maya: SCREEN_RECORDING_LINK**
 
 ![Demo shot rendered through the bridge](docs/images/demo_frames.png)
 
@@ -39,7 +42,7 @@ renders the whole animation.
 |---|---|---|
 | Geometry via Alembic **or USD** | **Alembic** for geometry + **shot.json** for camera, lights, looks | Alembic bakes skinned/deformed meshes per frame and Blender imports it reliably. Camera and lights go as raw Maya numbers so the conversion lives in *one tested file* instead of inside two importers. |
 | Look library in a hand-made .blend | Looks are **data** (`looks.json`); a script builds `look_library.blend` | Reproducible and easy to diff. You can still edit the materials by hand in Blender: render.py appends them from the .blend by name. |
-| Outlines with **Line Art** or inverted hull | **Inverted hull** (Solidify) | Works per object, per look, with no Grease Pencil setup, and renders fast. Line Art is in "next". |
+| Outlines with **Line Art** or inverted hull | **Two line styles**: 2D ink lines (Freestyle, the default) and 3D inverted-hull outlines | The hull is a 3D shell, so lines thin out with distance and read as 3D. For a real 3D-to-2D look I added Freestyle strokes with a constant pixel width, plus inner crease lines. |
 | Pre-flight as a separate tool | Pre-flight **inside** the bridge (7 checks, 3 with one-click fixes) | The "combine" option from the proposal: checks what the bridge needs (unique names, looks, lights...). |
 | Viewport shows a Maya preview | Viewport preview with **rampShader** stand-ins | Not in the proposal: added so artists see bands in Maya before rendering. |
 | Live-link ("preview current frame" fast button) | Not built; current frame renders in **~1.6 s** anyway | Blender starts headless fast enough that a persistent server wasn't needed for this shot. |
@@ -52,8 +55,11 @@ renders the whole animation.
   3. **Pre-flight**: traffic-light checks; double-click selects the problem nodes; **Fix** button where a fix is safe
   4. **Render**: Current Frame / Shot / Stop; progress bar; Maya stays usable while Blender renders
   5. **Result**: frames appear as they render; flipbook playback; Show in Render View; Open Folder; **Open .blend in Blender**
-* **7 toon looks** (`blender/looks.json`): Toon (keep Maya colour), Anime skin,
-  Comic cel, Cel metal (bands + specular + rim), Painted ground, Flat 2D, Manga.
+* **9 toon looks** (`blender/looks.json`): Cel 2D (anime two-tone with cool
+  shadow), Ground 2D, Toon (keep Maya colour), Anime skin, Comic cel, Cel metal
+  (bands + specular + rim), Painted ground, Flat 2D, Manga.
+* **Two line styles**: *2D ink lines* (Freestyle; constant width on screen,
+  silhouette + crease) or *3D hull outlines* (per-look width), or both.
 
   ![Look sheet](docs/images/look_sheet.png)
 
@@ -112,11 +118,19 @@ blender -b --python blender/build_library.py -- --sheet docs/images/look_sheet.p
 | `mayapy tests/camera_match.py 36`: Maya Software vs Blender, same frame | **99.13%** of pixels agree on object vs background; the rest are 1-px antialiased edges ([image](docs/images/camera_match_36.png)) |
 | `mayapy tests/run_end_to_end.py --all` | 72/72 frames, 1280×720, rendered in 35 s; PASS |
 | Pre-flight test with planted problems (duplicate name, unknown look, mirrored mesh) | all found; fixes resolved name/look errors |
-| Live Maya 2026 GUI: panel, assign, preview, render frame + shot, Render View | see demo video |
+| `mayapy tests/ui_smoke.py`: the real panel, buttons pressed from code | 13/13: looks listed, assign, select, preview on/off, pre-flight, Render Current Frame through the background Blender job, frame shown in the viewer |
+| `mayapy demo/make_video.py` | renders the shot 3 ways (Maya Software, hull, ink) and builds the demo video |
 
 ![Camera match](docs/images/camera_match_36.png)
 
 ## What I learned
+
+* **3D-to-2D needs screen-space lines.** World-space outlines (inverted hull)
+  get thinner with distance, so the image still reads as 3D. Freestyle strokes
+  have a constant pixel width and also draw inner creases, which reads as drawn.
+* **Freestyle has a weak spot where objects intersect.** The character's rounded
+  bottom was buried in the ground, and Freestyle drew a ghost line there and dropped
+  the real silhouette. Resting the mesh on the ground fixed it; it's listed under limits.
 
 * **Coordinate systems are the whole game.** Y-up vs Z-up, cm vs m, row vs
   column matrices, inches vs mm, four film-fit modes vs two. Writing one
@@ -141,6 +155,8 @@ blender -b --python blender/build_library.py -- --sheet docs/images/look_sheet.p
 * **Point/spot/area light intensity** is approximate (directional is exact);
   Arnold lights (aiAreaLight, skydome) are not converted.
 * **Multiple materials on one mesh** (per-face shading groups) get one look for the whole mesh.
+* **Freestyle lines near intersections**: geometry pushed through other geometry
+  (e.g. feet sunk into the ground) can get a stray line; use hull outlines for such shots.
 * **Mirrored (negative-scale) meshes** can show inverted outlines; pre-flight warns but can't fix it safely.
 * **Viewport preview** is a rough rampShader stand-in, not the EEVEE look.
 * Tested on macOS only; Windows/Linux Blender paths are written but untested.
@@ -160,8 +176,8 @@ blender -b --python blender/build_library.py -- --sheet docs/images/look_sheet.p
 ```
 toon_bridge/   Maya package: ui.py, looks.py, preflight.py, exporter.py, launcher.py, convert.py
 blender/       render.py, toon_materials.py, build_library.py, looks.json, look_library.blend
-demo/          make_demo_scene.py, toon_demo.ma
-tests/         test_convert.py, test_light_match.py, camera_match.py, run_end_to_end.py
-docs/          HOW_IT_WORKS.md, PROPOSAL.md (original), images/
+demo/          make_demo_scene.py, toon_demo.ma, make_video.py
+tests/         test_convert.py, test_light_match.py, camera_match.py, run_end_to_end.py, ui_smoke.py
+docs/          HOW_IT_WORKS.md, PROPOSAL.md (original), images/, video/
 drag_into_maya.py   installer
 ```

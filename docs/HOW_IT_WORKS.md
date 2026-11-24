@@ -136,6 +136,16 @@ Two problems found while testing, and their fixes:
    object inside it. The outline material now returns *Transparent* to shadow
    rays (Light Path → Is Shadow Ray), so the shell is invisible to shadows.
 
+### 2D ink lines: Freestyle (`setup_ink_lines`, the default)
+
+The hull is a 3D shell, so its line thins out with distance and never draws
+inside the silhouette, which still reads as 3D. Freestyle finds edges in the
+rendered view and draws strokes with a **constant pixel width**: a thick
+outer line (silhouette, contour, borders) and a thin inner line (creases
+sharper than 50°). The panel's *Line style* picks ink, hull, or both.
+`DeformBaker` hands Freestyle a plain mesh of the current pose for each deforming
+(skinned) Alembic object on every frame.
+
 ## 6. Rendering (`blender/render.py`)
 
 Runs with `blender -b --factory-startup --python render.py -- shot.json [--frame N] [--preview]`.
@@ -175,4 +185,5 @@ frames arrive. "Open .blend in Blender" opens the exact scene that was rendered.
 | `test_convert.py` | any Python | axis, units, matrix layout, film fit, sun formula |
 | `test_light_match.py` | Blender | sun strength = π × intensity gives Maya's brightness (exact to 3 decimals) |
 | `camera_match.py` | mayapy | same frame in Maya Software vs Blender: 99.13% of pixels agree on foreground/background |
+| `ui_smoke.py` | mayapy | the real panel: assign, preview, pre-flight, Render Current Frame via QProcess, viewer (13/13) |
 | `run_end_to_end.py` | mayapy | build demo → pre-flight → export → Blender → every frame exists, right size, not blank |
