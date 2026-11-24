@@ -89,6 +89,20 @@ def preview_command(look_json, out_png, width=480, height=300, blender=None):
             look_json, out_png, str(int(width)), str(int(height))]
 
 
+SYNC_SCRIPT = os.path.join(REPO, "blender", "graph_sync.py")
+
+
+def sync_command(request_json, response_json, preview_png=None, width=360, height=236, blender=None):
+    """Blender rebuilds a look's node graph, writes back its exact version (and a preview)."""
+    blender = blender or find_blender()
+    if not blender:
+        raise RuntimeError("Blender not found.")
+    cmd = [blender, "-b", "--factory-startup", "--python", SYNC_SCRIPT, "--", request_json, response_json]
+    if preview_png:
+        cmd += [preview_png, str(int(width)), str(int(height))]
+    return cmd
+
+
 def blender_version(path=None):
     """'5.3.0' for the given (or found) Blender, cached; None if it can't run."""
     path = path or find_blender()

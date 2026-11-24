@@ -95,6 +95,8 @@ def compact(look):
             out[key] = {k: v for k, v in node.items() if k != "enabled"}
     if look.get("source") == "blend":
         out["source"] = "blend"
+    if look.get("graph"):
+        out["graph"] = look["graph"]      # the full node graph edited in Maya: renders use it
     return out
 
 

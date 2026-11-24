@@ -27,6 +27,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 sys.path.insert(0, REPO)
+import node_graph  # noqa: E402
 import toon_materials as tm  # noqa: E402
 from toon_bridge import convert, lookdefs  # noqa: E402
 
@@ -79,7 +80,7 @@ def materials_for(names, looks):
         mats.update(append_materials(from_blend))
     for n in names:
         if n not in mats:
-            mats[n] = tm.build_look(n, looks[n])
+            mats[n] = node_graph.material_for(n, looks[n])
             outline = tm.build_outline(n, looks[n])
             if outline:
                 mats[n + "__outline"] = outline
