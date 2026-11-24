@@ -1,5 +1,60 @@
 {
-  "_doc": "Toon look library. Each look becomes one EEVEE material in look_library.blend (built by build_library.py). base_color 'maya' means: take the colour from the object's Maya shader. bands are Constant Color Ramp stops [position, multiplier colour] applied to the Shader-to-RGB light value. outline width is in Maya centimetres. Bands above 1.0 brighten (a small highlight band).",
+  "_doc": "Toon look library. Each look becomes one EEVEE material in look_library.blend (built by build_library.py). base_color 'maya' means: take the colour from the object's Maya shader. bands are Constant Color Ramp stops [position, multiplier colour] applied to the Shader-to-RGB light value. outline width is in Maya centimetres. Bands above 1.0 brighten (a small highlight band). type 'pop' = comic halftone look (screen-space dots, hatching).",
+  "pop_comic": {
+    "label": "Pop-art comic (halftone + hatching)",
+    "type": "pop",
+    "base_color": "maya",
+    "dots_per_screen": 75,
+    "dots_below": 0.8,
+    "max_dot": 0.6,
+    "hatch_below": 0.2,
+    "saturation": 1.4,
+    "outline": {
+      "width_cm": 0.5,
+      "color": [
+        0.04,
+        0.02,
+        0.08
+      ]
+    }
+  },
+  "pop_skin": {
+    "label": "Pop-art skin (warm dots)",
+    "type": "pop",
+    "base_color": [
+      1.0,
+      0.78,
+      0.62
+    ],
+    "dots_per_screen": 75,
+    "dots_below": 0.7,
+    "max_dot": 0.5,
+    "hatch_below": 0.1,
+    "dot_color": [
+      0.85,
+      0.35,
+      0.35
+    ],
+    "saturation": 1.2,
+    "outline": {
+      "width_cm": 0.4,
+      "color": [
+        0.2,
+        0.05,
+        0.08
+      ]
+    }
+  },
+  "pop_ground": {
+    "label": "Pop-art ground (big dots)",
+    "type": "pop",
+    "base_color": "maya",
+    "dots_per_screen": 45,
+    "dots_below": 0.9,
+    "max_dot": 0.55,
+    "hatch_below": 0.0,
+    "saturation": 1.5
+  },
   "cel_2d": {
     "label": "Cel 2D (anime two-tone, cool shadow)",
     "base_color": "maya",

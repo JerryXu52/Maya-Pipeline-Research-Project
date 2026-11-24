@@ -48,7 +48,8 @@ def main():
 
     shot_dir = os.path.join(REPO, "renders", "demo_shot")
     t0 = time.time()
-    shot = exporter.export_shot(cam, make_demo_scene.START, make_demo_scene.END, shot_dir)
+    style = {"misregister_px": 3, "on_twos": True, "background": [0.98, 0.95, 0.85]} if "--pop" in argv else None
+    shot = exporter.export_shot(cam, make_demo_scene.START, make_demo_scene.END, shot_dir, settings=style)
     print("exported %s in %.1fs" % (shot, time.time() - t0))
 
     todo = frames or [None]

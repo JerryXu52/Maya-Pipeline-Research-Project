@@ -81,12 +81,12 @@ def build_character():
     geo = cmds.group(body, name="bean_geo")
     char = cmds.group(rig, geo, name="bean_GRP")
 
-    paint(body, lambert("bean_body_mat", (0.98, 0.62, 0.30)))
+    paint(body, lambert("bean_body_mat", (0.95, 0.15, 0.25)))
     paint(head, lambert("bean_head_mat", (1.0, 0.85, 0.72)))
     paint([eye_l, eye_r], lambert("bean_eye_mat", (0.08, 0.07, 0.12)))
-    paint(scarf, lambert("bean_scarf_mat", (0.85, 0.16, 0.22)))
-    looks.assign("cel_2d", [body])
-    looks.assign("anime_skin", [head])
+    paint(scarf, lambert("bean_scarf_mat", (0.15, 0.35, 0.95)))
+    looks.assign("pop_comic", [body])
+    looks.assign("pop_skin", [head])
     looks.assign("flat_ink", [eye_l, eye_r])
     looks.assign("cel_hard", [scarf])
 
@@ -101,10 +101,10 @@ def build_character():
 
 def build_set():
     ground = cmds.polyPlane(name="ground", width=20000, height=20000, subdivisionsX=120, subdivisionsY=120)[0]
-    paint(ground, lambert("ground_mat", (0.72, 0.80, 0.55)))
-    looks.assign("ground_2d", [ground])
+    paint(ground, lambert("ground_mat", (0.98, 0.85, 0.25)))
+    looks.assign("pop_ground", [ground])
 
-    sg_leaf = lambert("leaf_mat", (0.30, 0.62, 0.35))
+    sg_leaf = lambert("leaf_mat", (0.15, 0.75, 0.55))
     sg_trunk = lambert("trunk_mat", (0.48, 0.32, 0.22))
     trees = []
     for i, (x, z, s) in enumerate([(-120, -80, 1.0), (-170, 40, 0.8), (140, -130, 1.2), (190, 10, 0.9)]):
@@ -114,7 +114,7 @@ def build_set():
         cmds.move(x, 40 * s + 45 * s, z, crown)
         paint(trunk, sg_trunk)
         paint(crown, sg_leaf)
-        looks.assign("cel_2d", [trunk, crown])
+        looks.assign("pop_comic", [trunk, crown])
         trees.append(cmds.group(trunk, crown, name="tree%d_GRP" % i))
 
     rocks = []
@@ -125,13 +125,13 @@ def build_set():
         cmds.rotate(20 * i, 37 * i, 0, r)
         paint(r, sg_rock)
         rocks.append(r)
-    looks.assign("cel_2d", rocks)
+    looks.assign("pop_comic", rocks)
 
     # floating drone: cel metal ball with an orbiting ring
     drone = cmds.polySphere(name="drone_body", radius=12, subdivisionsX=40, subdivisionsY=30)[0]
     ring = cmds.polyTorus(name="drone_ring", radius=19, sectionRadius=1.8, subdivisionsX=48, subdivisionsY=12)[0]
     paint([drone, ring], lambert("drone_mat", (0.55, 0.70, 0.95)))
-    looks.assign("cel_metal", [drone, ring])
+    looks.assign("pop_comic", [drone, ring])
     dgrp = cmds.group(drone, ring, name="drone_GRP")
     cmds.move(-55, 95, -10, dgrp)
     key(dgrp, "translateY", [(1, 95), (36, 110), (72, 95)])
@@ -145,8 +145,8 @@ def build_set():
     board = cmds.polyCube(name="sign_board", width=50, height=24, depth=4)[0]
     cmds.move(55, 66, 92, board)
     cmds.rotate(0, -20, 0, board)
-    paint([post, board], lambert("sign_mat", (0.9, 0.9, 0.9)))
-    looks.assign("manga_ink", [post, board])
+    paint([post, board], lambert("sign_mat", (0.95, 0.45, 0.85)))
+    looks.assign("pop_comic", [post, board])
     return ground
 
 

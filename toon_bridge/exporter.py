@@ -32,6 +32,8 @@ DEFAULT_SETTINGS = {
     "line_mode": "ink",          # ink = Freestyle 2D lines, hull = inverted hull, both
     "line_px": 3.2,
     "line_color": [0.05, 0.03, 0.07],
+    "misregister_px": 0,         # pop art: offset red/blue print plates by N pixels
+    "on_twos": False,            # pop art: hold each rendered frame for two frames
 }
 
 

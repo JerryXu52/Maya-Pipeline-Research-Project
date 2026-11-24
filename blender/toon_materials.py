@@ -35,6 +35,8 @@ def _gt_mask(nodes, links, src_socket, threshold, x, y):
 
 
 def build_look(name, look):
+    if look.get("type") == "pop":
+        return build_pop_look(name, look)
     mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     mat.use_nodes = True
     mat.use_fake_user = True
@@ -288,3 +290,172 @@ def setup_ink_lines(scene, view_layer, color=(0.07, 0.05, 0.09), outer_px=2.6, i
     lineset("outer", outer_px, select_silhouette=True, select_external_contour=True,
             select_border=True, select_contour=True)
     lineset("inner", inner_px, select_crease=True, select_material_boundary=True)
+
+
+# ---------------------------------------------------------------- pop art / comic halftone
+def _math(nodes, links, op, a, b=None, loc=(0, 0)):
+    n = nodes.new("ShaderNodeMath")
+    n.operation = op
+    n.location = loc
+    for i, v in enumerate((a, b)):
+        if v is None:
+            continue
+        if isinstance(v, (int, float)):
+            n.inputs[i].default_value = v
+        else:
+            links.new(v, n.inputs[i])
+    return n.outputs[0]
+
+
+def build_pop_look(name, look):
+    """Comic-book pop art: flat colour, halftone dots and hatching in the shadows.
+
+    Everything is in SCREEN space (Texture Coordinate > Window), like a printed
+    page: the dots stay the same size on screen while the object moves.
+
+      light L   = Shader to RGB of a white diffuse (0 = dark, 1 = lit)
+      dots      = 45-degree grid; dot radius grows as L gets darker
+      hatching  = diagonal lines where L is below `hatch_below`
+      colour    = base (posterized lit/shadow) -> ink dots -> ink hatching
+    The node 'TB_Aspect' is set by render.py to width/height so dots are round.
+    """
+    mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    mat.use_nodes = True
+    mat.use_fake_user = True
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    nodes.clear()
+    out = nodes.new("ShaderNodeOutputMaterial")
+    out.location = (1800, 0)
+    emit = nodes.new("ShaderNodeEmission")
+    emit.location = (1600, 0)
+    links.new(emit.outputs[0], out.inputs["Surface"])
+
+    # light value
+    diff = nodes.new("ShaderNodeBsdfDiffuse")
+    diff.location = (-1200, 400)
+    s2 = nodes.new("ShaderNodeShaderToRGB")
+    s2.location = (-1000, 400)
+    links.new(diff.outputs[0], s2.inputs[0])
+    bw = nodes.new("ShaderNodeRGBToBW")
+    bw.location = (-800, 400)
+    links.new(s2.outputs["Color"], bw.inputs[0])
+    L = bw.outputs[0]
+
+    # screen coordinates, aspect-corrected, rotated 45 degrees
+    tc = nodes.new("ShaderNodeTexCoord")
+    tc.location = (-1400, -200)
+    sep = nodes.new("ShaderNodeSeparateXYZ")
+    sep.location = (-1200, -200)
+    links.new(tc.outputs["Window"], sep.inputs[0])
+    aspect = nodes.new("ShaderNodeValue")
+    aspect.name = aspect.label = "TB_Aspect"
+    aspect.outputs[0].default_value = 16.0 / 9.0
+    aspect.location = (-1400, -450)
+    x = _math(nodes, links, "MULTIPLY", sep.outputs["X"], aspect.outputs[0], (-1000, -200))
+    y = sep.outputs["Y"]
+    freq = look.get("dots_per_screen", 70.0)
+    u = _math(nodes, links, "MULTIPLY", _math(nodes, links, "ADD", x, y, (-800, -150)), 0.7071 * freq, (-600, -150))
+    v = _math(nodes, links, "MULTIPLY", _math(nodes, links, "SUBTRACT", y, x, (-800, -350)), 0.7071 * freq, (-600, -350))
+    fu = _math(nodes, links, "SUBTRACT", _math(nodes, links, "FRACT", u, None, (-400, -150)), 0.5, (-200, -150))
+    fv = _math(nodes, links, "SUBTRACT", _math(nodes, links, "FRACT", v, None, (-400, -350)), 0.5, (-200, -350))
+    dist = _math(nodes, links, "SQRT", _math(nodes, links, "ADD",
+                 _math(nodes, links, "MULTIPLY", fu, fu, (0, -150)),
+                 _math(nodes, links, "MULTIPLY", fv, fv, (0, -350)), (200, -250)), None, (400, -250))
+
+    # dot radius: 0 where lit (L >= dots_below), up to 0.72 (dots merge) where dark
+    lo = look.get("dots_below", 0.75)
+    t = _math(nodes, links, "DIVIDE", _math(nodes, links, "SUBTRACT", lo, L, (-600, 150)), lo, (-400, 150))
+    t = _math(nodes, links, "MAXIMUM", t, 0.0, (-200, 150))
+    radius = _math(nodes, links, "MULTIPLY", t, look.get("max_dot", 0.62), (0, 150))
+    dots = _math(nodes, links, "LESS_THAN", dist, radius, (600, 0))
+
+    # diagonal hatching in the deepest shadow
+    hatch_f = look.get("hatch_per_screen", 110.0)
+    hu = _math(nodes, links, "MULTIPLY", _math(nodes, links, "SUBTRACT", x, y, (-800, -600)), 0.7071 * hatch_f, (-600, -600))
+    stripe = _math(nodes, links, "LESS_THAN", _math(nodes, links, "FRACT", hu, None, (-400, -600)),
+                   look.get("hatch_width", 0.28), (-200, -600))
+    deep = _math(nodes, links, "LESS_THAN", L, look.get("hatch_below", 0.18), (0, -600))
+    hatch = _math(nodes, links, "MULTIPLY", stripe, deep, (600, -400))
+
+    # base colour, posterized into lit / shadow
+    if look.get("base_color", "maya") == "maya":
+        base = nodes.new("ShaderNodeAttribute")
+        base.attribute_type = "OBJECT"
+        base.attribute_name = COLOR_ATTR
+        base_sock = base.outputs["Color"]
+    else:
+        base = nodes.new("ShaderNodeRGB")
+        base.outputs[0].default_value = (*look["base_color"], 1)
+        base_sock = base.outputs[0]
+    base.location = (200, 500)
+    shade = nodes.new("ShaderNodeValToRGB")
+    shade.location = (200, 300)
+    shade.color_ramp.interpolation = "CONSTANT"
+    shade.color_ramp.elements[0].position = 0.0
+    shade.color_ramp.elements[0].color = (*look.get("shadow_mult", [0.78, 0.74, 0.92]), 1)
+    shade.color_ramp.elements[1].position = look.get("lit_above", 0.45)
+    shade.color_ramp.elements[1].color = (1, 1, 1, 1)
+    links.new(L, shade.inputs["Fac"])
+    col = nodes.new("ShaderNodeVectorMath")
+    col.operation = "MULTIPLY"
+    col.location = (600, 400)
+    links.new(base_sock, col.inputs[0])
+    links.new(shade.outputs["Color"], col.inputs[1])
+    # saturate: push away from grey for the printed-ink punch
+    sat = nodes.new("ShaderNodeHueSaturation")
+    sat.location = (800, 400)
+    sat.inputs["Saturation"].default_value = look.get("saturation", 1.35)
+    links.new(col.outputs[0], sat.inputs["Color"])
+
+    ink_dot = look.get("dot_color")          # None = darker version of the base
+    if ink_dot:
+        dot_col = nodes.new("ShaderNodeRGB")
+        dot_col.outputs[0].default_value = (*ink_dot, 1)
+        dot_sock = dot_col.outputs[0]
+        dot_col.location = (800, 150)
+    else:
+        dm = nodes.new("ShaderNodeVectorMath")
+        dm.operation = "SCALE"
+        dm.location = (800, 150)
+        links.new(sat.outputs[0], dm.inputs[0])
+        dm.inputs["Scale"].default_value = 0.35
+        dot_sock = dm.outputs[0]
+    mix_d = nodes.new("ShaderNodeMix")
+    mix_d.data_type = "RGBA"
+    mix_d.location = (1100, 300)
+    links.new(dots, mix_d.inputs["Factor"])
+    links.new(sat.outputs[0], mix_d.inputs[6])
+    links.new(dot_sock, mix_d.inputs[7])
+    hatch_col = look.get("hatch_color", [0.06, 0.04, 0.12])
+    mix_h = nodes.new("ShaderNodeMix")
+    mix_h.data_type = "RGBA"
+    mix_h.location = (1350, 300)
+    links.new(hatch, mix_h.inputs["Factor"])
+    links.new(mix_d.outputs[2], mix_h.inputs[6])
+    mix_h.inputs[7].default_value = (*hatch_col, 1)
+    links.new(mix_h.outputs[2], emit.inputs["Color"])
+    return mat
+
+
+def set_aspect(aspect):
+    for m in bpy.data.materials:
+        if m.node_tree and "TB_Aspect" in m.node_tree.nodes:
+            m.node_tree.nodes["TB_Aspect"].outputs[0].default_value = aspect
+
+
+def misregister(path, px):
+    """Offset red right/down and blue left/up by `px`: the off-register look of cheap print."""
+    import numpy as np
+    img = bpy.data.images.load(path, check_existing=False)
+    w, h = img.size
+    a = np.empty(w * h * 4, dtype=np.float32)
+    img.pixels.foreach_get(a)
+    a = a.reshape(h, w, 4)
+    out = a.copy()
+    out[:, :, 0] = np.roll(np.roll(a[:, :, 0], px, axis=1), -px, axis=0)
+    out[:, :, 2] = np.roll(np.roll(a[:, :, 2], -px, axis=1), px, axis=0)
+    img.pixels.foreach_set(out.ravel())
+    img.filepath_raw = path
+    img.file_format = "PNG"
+    img.save()
+    bpy.data.images.remove(img)

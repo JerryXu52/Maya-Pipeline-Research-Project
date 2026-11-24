@@ -266,13 +266,28 @@ def main():
     os.makedirs(os.path.dirname(pattern), exist_ok=True)
     say("TOTAL", len(frames))
     baker = DeformBaker(scene) if scene.render.use_freestyle else None
+    tm.set_aspect(float(w) / float(h))
+    shift = int(st.get("misregister_px", 0))
+    if args["preview"]:
+        shift = shift // 2
+    on_twos = st.get("on_twos", False) and len(frames) > 1
+    last = None
     for i, f in enumerate(frames):
+        path = pattern.replace("####", "%04d" % f)
+        if on_twos and (f - frames[0]) % 2 == 1 and last:
+            # animate "on twos": hold the previous drawing for a second frame
+            import shutil
+            shutil.copyfile(last, path)
+            say("FRAME", f, i + 1, len(frames), path)
+            continue
         scene.frame_set(f)
         if baker:
             baker.bake()
-        path = pattern.replace("####", "%04d" % f)
         scene.render.filepath = path
         bpy.ops.render.render(write_still=True)
+        if shift:
+            tm.misregister(path, shift)
+        last = path
         say("FRAME", f, i + 1, len(frames), path)
     say("DONE", "%.1fs" % (time.time() - t0))
 

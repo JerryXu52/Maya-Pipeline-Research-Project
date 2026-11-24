@@ -80,13 +80,13 @@ def render_maya(cam, folder, w, h):
     return paths
 
 
-def render_toon(cam, folder, line_mode):
+def render_toon(cam, folder, line_mode, extra=None):
     cached = {f: os.path.join(folder, "frames", "toon.%04d.png" % f)
               for f in range(make_demo_scene.START, make_demo_scene.END + 1)}
     if _have(cached):
         return cached
     shot = exporter.export_shot(cam, make_demo_scene.START, make_demo_scene.END, folder,
-                                settings={"line_mode": line_mode})
+                                settings=dict({"line_mode": line_mode}, **(extra or {})))
     code, lines = launcher.run_blocking(launcher.build_command(shot), echo=False)
     if code:
         print("\n".join(lines[-30:]))
@@ -182,11 +182,12 @@ def main():
     cam = make_demo_scene.build(save=False)
     frames = range(make_demo_scene.START, make_demo_scene.END + 1)
     maya = render_maya(cam, os.path.join(OUT, "maya"), 1280, 720)
-    hull = render_toon(cam, os.path.join(OUT, "toon_hull"), "hull")
-    ink = render_toon(cam, os.path.join(OUT, "toon_ink"), "ink")
+    pop = render_toon(cam, os.path.join(OUT, "toon_pop"), "ink",
+                      {"misregister_px": 3, "on_twos": True, "background": [0.98, 0.95, 0.85]})
+    plain = render_toon(cam, os.path.join(OUT, "toon_pop_plain"), "ink", {"background": [0.98, 0.95, 0.85]})
 
     w = Writer(os.path.join(OUT, "comp"))
-    w.add(card("Toon Bridge", "Maya shot  →  Blender EEVEE cel shading  →  back into Maya",
+    w.add(card("Toon Bridge", "Maya shot  →  Blender EEVEE pop-art comic look  →  back into Maya",
                ["Jianrui (Jerry) Xu · SVA MFA Computer Arts · Research Project",
                 "Everything below was rendered by the tool from one Maya scene"]), FPS * 4)
     w.add(card("1. The Maya scene", "Modelled, skinned, animated and lit in Maya",
@@ -196,34 +197,34 @@ def main():
         w.add(full(maya[f], "Maya Software render (the 3D source)", f))
     w.add(card("2. One click: Render Shot", "Alembic + shot.json → headless Blender → EEVEE",
                ["Looks re-applied by name · camera and lights converted (Y-up cm → Z-up m)",
-                "72 frames at 1280×720 in about 40 seconds"]), FPS * 3)
+                "72 frames at 1280×720 in under a minute"]), FPS * 3)
     for _ in range(2):
         for f in frames:
-            w.add(side_by_side(maya[f], ink[f], "Maya (3D)", "Toon Bridge → Blender EEVEE (2D cel)",
+            w.add(side_by_side(maya[f], pop[f], "Maya (3D)", "Toon Bridge → Blender EEVEE (pop-art comic)",
                                "Same shot, same camera, same sun", f))
-    w.add(card("3. 3D look → 2D look", "Two line styles",
-               ["3D hull outlines: a shell around each mesh, thinner with distance",
-                "2D ink lines: Freestyle strokes with a constant width on screen, plus inner creases"]), FPS * 3)
+    w.add(card("3. The pop-art comic look", "Printed in screen space, like a comic page",
+               ["Halftone dots that grow in shadow · diagonal hatching in the darkest areas",
+                "Constant-width ink lines · red/blue plates off-register · animated on twos"]), FPS * 4)
     for f in frames:
-        w.add(side_by_side(hull[f], ink[f], "3D hull outlines", "2D ink lines (default)",
-                           "Line style", f))
+        w.add(side_by_side(plain[f], pop[f], "Halftone + ink only", "+ misregistration + on twos",
+                           "Print effects", f))
     for f in frames:
-        w.add(full(ink[f], "Final: 2D cel look · two-tone shadows · ink lines · hard cast shadows", f))
+        w.add(full(pop[f], "Pop-art comic: halftone · hatching · ink · misregistration · on twos", f))
     w.add(still(os.path.join(REPO, "docs", "images", "look_sheet.png"), "4. The look library (Blender node trees)",
-                "Shader to RGB → Constant Color Ramp bands · hard specular · rim · outlines. "
+                "Shader to RGB → screen-space halftone / Constant Color Ramp bands · hatching · ink lines. "
                 "Editable in Blender's node editor."), FPS * 5)
     w.add(still(os.path.join(REPO, "docs", "images", "camera_match_36.png"), "5. Verified against Maya",
                 "Same frame rendered by Maya and by the bridge: 99.13% of pixels agree; the rest are 1-px edges. "
                 "Sun strength = π × Maya intensity, matched to 3 decimals."), FPS * 5)
     w.add(card("Toon Bridge", "github.com/JerryXu52/Maya-Pipeline-Research-Project",
-               ["Next: live link for scrubbing · Line Art · textures · Arnold lights"]), FPS * 4)
+               ["Next: live link for scrubbing · textures through halftone · Arnold lights"]), FPS * 4)
 
     dst_dir = os.path.join(REPO, "docs", "video")
     os.makedirs(dst_dir, exist_ok=True)
     dst = os.path.join(dst_dir, "toon_bridge_demo.mp4")
     subprocess.check_call([ffmpeg(), "-loglevel", "error", "-y", "-framerate", str(FPS),
                            "-i", os.path.join(w.folder, "v.%05d.png"),
-                           "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "23", "-preset", "slow",
+                           "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "21", "-preset", "medium",
                            "-movflags", "+faststart", dst])
     print("VIDEO", dst, "%d frames, %.1f s" % (w.n, w.n / float(FPS)))
 
