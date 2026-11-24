@@ -1,8 +1,7 @@
 # Live demo script: `demo/presentation.ma`
 
-A rooftop jump at dusk, staged so each step of the tool has something to show.
-About 2 minutes. Rebuild the scene any time with `mayapy demo/make_presentation_scene.py`;
-pre-render its frames with `mayapy demo/prerender_presentation.py`.
+A rooftop jump at dusk, staged so each step of the panel has something to show.
+About 2 minutes, all inside Maya. (To rebuild the scene file: `mayapy demo/make_presentation_scene.py`.)
 
 ![Presentation scene, rendered](images/presentation_scene.gif)
 
@@ -10,33 +9,28 @@ pre-render its frames with `mayapy demo/prerender_presentation.py`.
 
 | Staged | So that you can show |
 |---|---|
-| The hero (`bean_body`, `bean_head`, eyes, scarf) has **no look** | assigning a look live (step 1) |
+| The hero (`bean_body`, `bean_head`, eyes, scarf) has **no look** | one click of a style card gives it looks (step 1) |
 | Two skyline buildings are both named **`tower`** (in `skyline_near` and `skyline_far`) | pre-flight's red error and its one-click **Fix** (step 3) |
-| The three rooftop **AC units** have no look | a yellow warning and **Fix: Tag as toon_auto** (step 3) |
+| The three rooftop **AC units** have no look | the style click covers them too |
 | Buildings use a **tiled window texture** | textures coming through, posterized under the halftone |
 | Camera `shotCam` follows the jump; the sun is low and warm; the sky colour is saved in the scene | the camera and light conversion, the Background swatch |
-| Frames 1–96 are **pre-rendered** in `demo/toon_bridge/presentation/frames/` | **Load Shot Frames** plays the result instantly |
+| Render the shot once before class (optional) | the panel shows that last render as soon as the scene opens |
 
 ## Before class
 
-1. Pre-render the shot (about a minute), so the flipbook is ready. Either:
-   - **Terminal:** `/Applications/Autodesk/maya2026/Maya.app/Contents/bin/mayapy demo/prerender_presentation.py`
-   - **Inside Maya:** open `demo/prerender_presentation.py` in the Script Editor (Python tab) and run it.
-     It starts a separate background job, so your open scene is not touched; a message
-     at the top of the viewport says when the 96 frames are done.
-2. In Maya: drag `drag_into_maya.py` into the viewport, then open `demo/presentation.ma`.
-3. Dock the panel on the right; set the viewport to look through `shotCam`, frame 36.
+1. In Maya: *Toon Bridge → Demo Scenes → Rooftop jump* (opens `demo/presentation.ma`; the panel opens too).
+2. Optional, so the full shot can play instantly: in step 3 pick **Playback** and press **Render** (about a minute),
+   then reopen the demo scene so the planted problems are back. The panel shows the last render automatically.
 
 ## Live, step by step
 
 | # | Do | Say |
 |---|---|---|
-| 1 | Select the hero's body and scarf → **Pop-art comic** → **Assign to Selected**. Select the head → **Pop-art skin** → Assign. Select both eyes → **Flat 2D** → Assign. | "Each object gets a look; it's a string attribute on the object." |
-| 2 | Tick **Viewport toon preview**, then untick it. | "A rough preview in Maya with ramp shaders; the originals come back when it's off." |
-| 3 | Click **Check Scene**. Red row: *2 meshes share a name*. Double-click it (the two towers get selected), click **Fix: Rename with suffix**. Yellow row: *3 meshes have no look* → **Fix: Tag as toon_auto**. Check again: all green. | "Blender re-applies looks by name, so duplicate names would mix them up. Pre-flight catches it before anything is sent." |
-| 4 | Point at **2 Shot**: `shotCam`, frames 1–96, *2D ink lines*, misregistration 3 px, *Animate on twos*, the dusk **Background** swatch. | "These are the comic options." |
-| 5 | Click **Render Current Frame**. Render View opens with frame 36 in about 2 seconds. | "Maya exports, Blender renders in the background, the frame comes back. Maya stays usable." |
-| 6 | Click **Load Shot Frames**, then **Play**. | "The whole 96-frame shot, rendered earlier with the same button." |
-| 7 | (Optional) **Open .blend in Blender**. Show a building's material: the halftone node tree. | "This is the exact scene Blender rendered." |
+| 1 | In **1 Choose a style**, click **Pop-Art Comic**. The list fills in: the head gets *Pop-art skin*, the eyes *Flat 2D*, the roofs *Pop-art ground*. | "One click gives every object a look; it guesses skin, eyes and ground from object names. I can change any row." |
+| 2 | Change one row's look in the list, then tick **Preview looks in the viewport** and untick it. | "Looks are stored on the objects. The viewport preview is a rough Maya version." |
+| 3 | Look at **2 Check the scene**: red, *2 meshes share a name*. Click **Select** (both towers light up), then **Fix all**. It turns green. | "Blender re-applies looks by name, so two buildings called tower would get mixed up. The check catches it and fixes it." |
+| 4 | In **3 Render**, keep *This frame* and press **Render frame 40**. The frame appears in **Result** in about 2 seconds. | "Maya exports, Blender renders in the background, the frame comes back. Maya stays usable." |
+| 5 | Press **Play**, or scrub the Maya timeline (the result follows it). Click **Show in viewport** and look through `shotCam`. | "The comic frames sit on the camera, so I can scrub them right in the Maya viewport." |
+| 6 | (Optional) **Export MP4…**, **Open in Blender**. | "Video export uses Blender's own encoder; Open in Blender shows the exact scene it rendered." |
 
 If something breaks: play `docs/video/toon_bridge_demo.mp4` or show the GIF above.

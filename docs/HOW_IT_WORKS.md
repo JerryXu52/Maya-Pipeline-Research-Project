@@ -18,6 +18,29 @@ A walk through every part, in the order the data flows. Each section says
  convert.py   shared maths (Maya -> Blender), used by render.py and the tests
 ```
 
+## 0. The plug-in and the panel (`plug-ins/toonBridge.py`, `toon_bridge/menu.py`, `toon_bridge/ui.py`)
+
+* **Install:** `drag_into_maya.py` writes a Maya *module* file (`toonBridge.mod`) into the
+  user's modules folder. It tells Maya to add this repo to Python's path and its
+  `plug-ins/` folder to the plug-in path, so the plug-in shows up in the Plug-in Manager
+  on every start. The installer also loads it now and ticks *Auto load*.
+* **The plug-in** (Python API 2.0) registers one command, `toonBridge`
+  (`-open`, `-renderFrame`, `-renderShot`, `-style`), and builds the **Toon Bridge** menu.
+  Maya runs plug-in files without `__file__`, so it finds its repo with `MFnPlugin.loadPath()`.
+  Unloading closes the panel and removes the menu.
+* **The panel** has three steps. **Style** (`styles.py`): a style maps object *roles* to
+  looks and sets the render options; roles come from object names (`head` → skin,
+  `eye` → eyes, `ground/floor/roof` → ground). The style is saved on
+  `defaultRenderGlobals.toonStyle`, the background on `.toonBackground`.
+  **Check** reruns pre-flight after every change; **Fix all** applies fixes in one undo chunk,
+  looping because a fix can uncover the next issue. **Render** runs the check, offers to fix,
+  exports, and starts Blender with `QProcess`.
+* **Result:** a `timeChanged` scriptJob makes the player follow the Maya timeline.
+  *Show in viewport* creates an image plane on the render camera with *Use Image Sequence*
+  on, placed just past the near clip, so the toon frames are scrubbed in the viewport.
+  *Export MP4* runs `blender/encode_video.py` (image strip in Blender's Video Sequencer → H.264).
+* The style-card pictures are rendered by Blender (`blender/style_thumbs.py`) from the real looks.
+
 ## 1. Tagging looks (`toon_bridge/looks.py`)
 
 * A look is a string attribute `toonLook` on the mesh's **transform**.

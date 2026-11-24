@@ -17,6 +17,7 @@ EEVEE through Toon Bridge in the pop-art comic look.*
 | ▶ Videos | |
 |---|---|
 | [**Demo video**](docs/video/toon_bridge_demo.mp4) (43 s) | Maya render vs Toon Bridge side by side, print effects on/off, look library, camera match |
+| [**Presentation demo script**](docs/PRESENTATION_DEMO.md) | the rooftop scene staged for a live demo, step by step |
 | [**Stress-test video**](docs/video/stress_test.mp4) (35 s) | scanned humans, a robot rig and a town environment from Maya's example scenes, all through the bridge |
 | **Screen recording in Maya** | SCREEN_RECORDING_LINK |
 
@@ -24,34 +25,32 @@ EEVEE through Toon Bridge in the pop-art comic look.*
 
 ## How to use it
 
-<img src="docs/images/panel.png" align="right" width="330" alt="The Toon Bridge panel in Maya after a render">
+<img src="docs/images/panel.png" align="right" width="300" alt="The Toon Bridge panel in Maya after a render">
 
-**Install once**
+**Install once (a Maya plug-in)**
 1. Install **Blender 4.2+** (tested with 5.3). On a Mac it is found automatically in `/Applications`.
-2. Clone this repo, then **drag `drag_into_maya.py` into a Maya viewport.**
-   That adds the repo to Maya's Python path, puts a **Toon** button on your
-   shelf, and opens the panel. Next time, just click **Toon**.
+2. Clone this repo and **drag `drag_into_maya.py` into a Maya viewport**. That registers the
+   plug-in (`plug-ins/toonBridge.py`) as a Maya module, ticks *Auto load* in the Plug-in Manager,
+   and adds a **Toon Bridge** menu to Maya's menu bar. Nothing to do on later starts.
 
-**Every shot: work down the panel, 1 → 5**
+**Every shot: three steps in one panel** (*Toon Bridge → Open Toon Bridge*)
 
-| | Section | What you do |
+| | Step | What you do |
 |---|---|---|
-| **1** | **Looks** | Select meshes in the viewport → click a look (e.g. *Pop-art comic*) → **Assign to Selected**. Tick *Viewport toon preview* to see rough bands in Maya. |
-| **2** | **Shot** | Pick your **camera** and **frames**. Choose *Line style* and *Print effects* (misregistration px, animate on twos). Tick **Only selected objects** to leave rig controls out. |
-| **3** | **Pre-flight** | **Check Scene**. Red = must fix, yellow = OK but read it. Double-click a row to select the problem objects; **Fix** repairs it (e.g. duplicate names). |
-| **4** | **Render** | **Render Current Frame** (one frame in ~2 s, opens in Render View) or **Render Shot**. Maya stays usable; Blender works in the background. |
-| **5** | **Result** | Frames appear as they finish. **Play** the flipbook, **Open Folder**, or **Open .blend in Blender** to tweak the scene there. |
+| **1** | **Choose a style** | Click a style card: **Pop-Art Comic**, **Cel 2D**, **Manga Ink** or **Flat 2D**. Every object gets a look at once (a name like *head* gets skin, *eye* gets eyes, *ground/floor/roof* gets ground). Change any object in the list. |
+| **2** | **Check the scene** | Runs by itself. If something is red, click **Fix all**. |
+| **3** | **Render** | Pick *This frame*, *Playback* or *Custom* and press the big **Render** button. Maya stays usable while Blender renders. |
+| ▶ | **Result** | Frames appear as they finish. **Play**, or keep *Follow the Maya timeline* on and scrub. **Show in viewport** puts the toon frames on the camera so you can scrub them in the Maya viewport. **Export MP4** writes a video (Blender's built-in encoder, nothing else to install). |
 
-**Try it in one minute:** open `demo/toon_demo.ma` (looks already assigned),
-choose `shotCam`, press **Render Current Frame**.
+Everything is also in the **Toon Bridge** menu (*Render This Frame*, *Render Shot*, a style
+switch, and *Demo Scenes*), and as a command: `toonBridge -renderShot;` /
+`cmds.toonBridge(style="cel")`. Line style, colour offset, animate on twos, background
+colour and output folder are under **Advanced settings**.
 
-**Presentation scene:** `demo/presentation.ma`, a rooftop jump at dusk staged for a
-live demo (the hero has no look yet, two buildings share a name for pre-flight
-to catch). Step-by-step script: [docs/PRESENTATION_DEMO.md](docs/PRESENTATION_DEMO.md).
+**Try it:** *Toon Bridge → Demo Scenes → Rooftop jump*, then press **Render**.
 
-**Your own looks:** open `blender/look_library.blend` in Blender, edit a
-material's nodes and save. Every render from Maya uses your edits. New looks go
-in `blender/looks.json`.
+**Your own looks:** open `blender/look_library.blend` in Blender, edit a material's
+nodes and save; every render from Maya uses your edits. New looks go in `blender/looks.json`.
 
 <br clear="right">
 
@@ -153,7 +152,7 @@ the shot; `toon_bridge.launcher.build_command(shot_json)` gives the Blender comm
 | `mayapy tests/camera_match.py 36`: Maya Software vs Blender, same frame | **99.20%** of pixels agree on object vs background; the rest are 1-px antialiased edges ([image](docs/images/camera_match_36.png)) |
 | `mayapy tests/run_end_to_end.py --all` | 72/72 frames, 1280×720, rendered in 35 s; PASS |
 | Pre-flight test with planted problems (duplicate name, unknown look, mirrored mesh) | all found; fixes resolved name/look errors |
-| `mayapy tests/ui_smoke.py`: the real panel, buttons pressed from code | 13/13, 5 runs in a row (after fixing an intermittent crash, see below): looks listed, assign, select, preview on/off, pre-flight, Render Current Frame through the background Blender job, frame shown in the viewer |
+| `mayapy tests/ui_smoke.py`: loads the plug-in and drives the real panel | 26/26: plug-in load/unload, style cards assign looks by name, per-object looks, Fix all, render a frame and a range through the background Blender job, viewer follows the timeline, image plane on the camera, Export MP4 |
 | `mayapy demo/make_video.py` | renders the shot 3 ways (Maya Software, hull, ink) and builds the demo video |
 
 ![Camera match](docs/images/camera_match_36.png)
@@ -249,8 +248,11 @@ tested on my own skinned demo character.
 ## Repo map
 
 ```
-toon_bridge/   Maya package: ui.py, looks.py, preflight.py, exporter.py, launcher.py, convert.py
-blender/       render.py, toon_materials.py, build_library.py, looks.json, look_library.blend
+plug-ins/      toonBridge.py: the Maya plug-in (menu, toonBridge command)
+toon_bridge/   Maya package: ui.py (panel), menu.py, styles.py, looks.py, preflight.py,
+               exporter.py, launcher.py, convert.py, icons/
+blender/       render.py, toon_materials.py, build_library.py, looks.json, look_library.blend,
+               encode_video.py (MP4), style_thumbs.py (style-card images)
 demo/          make_demo_scene.py, toon_demo.ma, make_video.py,
                make_presentation_scene.py, presentation.ma, prerender_presentation.py, textures/
 tests/         test_convert.py, light_match_blender.py, camera_match.py, run_end_to_end.py, ui_smoke.py, stress_scenes.py
