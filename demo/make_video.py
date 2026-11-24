@@ -214,7 +214,7 @@ def main():
                 "Shader to RGB → screen-space halftone / Constant Color Ramp bands · hatching · ink lines. "
                 "Editable in Blender's node editor."), FPS * 5)
     w.add(still(os.path.join(REPO, "docs", "images", "camera_match_36.png"), "5. Verified against Maya",
-                "Same frame rendered by Maya and by the bridge: 99.13% of pixels agree; the rest are 1-px edges. "
+                "Same frame rendered by Maya and by the bridge: 99.20% of pixels agree; the rest are 1-px edges. "
                 "Sun strength = π × Maya intensity, matched to 3 decimals."), FPS * 5)
     w.add(card("Toon Bridge", "github.com/JerryXu52/Maya-Pipeline-Research-Project",
                ["Next: live link for scrubbing · textures through halftone · Arnold lights"]), FPS * 4)
