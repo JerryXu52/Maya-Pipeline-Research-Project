@@ -132,7 +132,7 @@ blender -b --python blender/build_library.py -- --sheet docs/images/look_sheet.p
 |---|---|
 | `python3 -m unittest discover tests` (conversion maths) | 6/6 pass |
 | `blender -b --factory-startup --python tests/test_light_match.py` | Maya intensity 1.0/0.5/1.5 → Blender 0.500/0.400/0.600, the same as Maya's Lambert result to 3 decimals |
-| `mayapy tests/camera_match.py 36`: Maya Software vs Blender, same frame | **99.13%** of pixels agree on object vs background; the rest are 1-px antialiased edges ([image](docs/images/camera_match_36.png)) |
+| `mayapy tests/camera_match.py 36`: Maya Software vs Blender, same frame | **99.20%** of pixels agree on object vs background; the rest are 1-px antialiased edges ([image](docs/images/camera_match_36.png)) |
 | `mayapy tests/run_end_to_end.py --all` | 72/72 frames, 1280×720, rendered in 35 s; PASS |
 | Pre-flight test with planted problems (duplicate name, unknown look, mirrored mesh) | all found; fixes resolved name/look errors |
 | `mayapy tests/ui_smoke.py`: the real panel, buttons pressed from code | 13/13: looks listed, assign, select, preview on/off, pre-flight, Render Current Frame through the background Blender job, frame shown in the viewer |

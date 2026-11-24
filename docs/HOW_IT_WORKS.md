@@ -198,6 +198,6 @@ frames arrive. "Open .blend in Blender" opens the exact scene that was rendered.
 |---|---|---|
 | `test_convert.py` | any Python | axis, units, matrix layout, film fit, sun formula |
 | `test_light_match.py` | Blender | sun strength = π × intensity gives Maya's brightness (exact to 3 decimals) |
-| `camera_match.py` | mayapy | same frame in Maya Software vs Blender: 99.13% of pixels agree on foreground/background |
+| `camera_match.py` | mayapy | same frame in Maya Software vs Blender: 99.20% of pixels agree on foreground/background |
 | `ui_smoke.py` | mayapy | the real panel: assign, preview, pre-flight, Render Current Frame via QProcess, viewer (13/13) |
 | `run_end_to_end.py` | mayapy | build demo → pre-flight → export → Blender → every frame exists, right size, not blank |
