@@ -71,10 +71,10 @@ def check_looks(meshes):
     unknown = [t for t in meshes if looks_mod.get_look(t) and looks_mod.get_look(t) not in library]
     if unknown:
         return Result("Looks assigned", ERROR, "%d meshes use a look that is not in the library." % len(unknown),
-                      unknown, lambda: looks_mod.assign(looks_mod.DEFAULT_LOOK, unknown), "Set to toon_auto")
+                      unknown, lambda: looks_mod.assign(looks_mod.DEFAULT_LOOK, unknown, source="auto"), "Set to toon_auto")
     if untagged:
         return Result("Looks assigned", WARN, "%d meshes have no look; they will use toon_auto." % len(untagged),
-                      untagged, lambda: looks_mod.assign(looks_mod.DEFAULT_LOOK, untagged), "Tag as toon_auto")
+                      untagged, lambda: looks_mod.assign(looks_mod.DEFAULT_LOOK, untagged, source="auto"), "Tag as toon_auto")
     return Result("Looks assigned", OK, "every mesh has a look")
 
 

@@ -51,6 +51,17 @@ def open_demo(filename):
     open_panel()
 
 
+def play_demo():
+    """Open the presentation scene and click through the panel with captions (about 50 s)."""
+    import importlib.util
+    path = os.path.join(REPO, "demo", "autoplay_demo.py")
+    spec = importlib.util.spec_from_file_location("toon_bridge_autoplay_demo", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    open_panel()
+    return mod.run()
+
+
 def build():
     remove()
     main = mel.eval("$tmp = $gMainWindow")
@@ -69,6 +80,7 @@ def build():
     for label, fn in DEMOS:
         cmds.menuItem(label=label, command=lambda *_a, f=fn: open_demo(f))
     cmds.setParent("..", menu=True)
+    cmds.menuItem(label="Play Demo (auto, with captions)", command=lambda *_: play_demo())
     cmds.menuItem(divider=True)
     cmds.menuItem(label="Help (README)", command=lambda *_: webbrowser.open(README))
     return MENU

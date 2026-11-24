@@ -65,6 +65,42 @@ QCheckBox { color: #e8e6e3; }
 """ % {"a": ACCENT}
 
 
+class _NoWheelMixin(object):
+    """Ignore the mouse wheel unless the field was clicked into.
+
+    In a scrolling panel the wheel otherwise lands on whatever dropdown is under
+    the pointer and silently changes it (found in live Maya: scrolling the panel
+    re-assigned an object's look once per wheel step).
+    """
+
+    def _no_wheel_init(self):
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+
+    def wheelEvent(self, event):
+        if self.hasFocus():
+            super().wheelEvent(event)
+        else:
+            event.ignore()
+
+
+class Combo(_NoWheelMixin, QtWidgets.QComboBox):
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self._no_wheel_init()
+
+
+class SpinBox(_NoWheelMixin, QtWidgets.QSpinBox):
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self._no_wheel_init()
+
+
+class DoubleSpinBox(_NoWheelMixin, QtWidgets.QDoubleSpinBox):
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self._no_wheel_init()
+
+
 def _style_icon(key, w=176, h=100):
     p = styles.icon_path(key)
     if os.path.isfile(p):
@@ -342,7 +378,7 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         row = QtWidgets.QHBoxLayout()
         self.apply_btn = QtWidgets.QPushButton("Apply style to all objects")
         self.apply_btn.clicked.connect(lambda: self.apply_style(overwrite=self.overwrite_chk.isChecked()))
-        self.overwrite_chk = QtWidgets.QCheckBox("Replace hand-picked looks")
+        self.overwrite_chk = QtWidgets.QCheckBox("Also replace looks picked by hand")
         row.addWidget(self.apply_btn)
         row.addWidget(self.overwrite_chk)
         row.addStretch(1)
@@ -378,7 +414,7 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         return card
 
     def _look_combo(self, current=None):
-        c = QtWidgets.QComboBox()
+        c = Combo()
         # long look names must not make the panel wider than its dock
         c.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon)
         c.setMinimumContentsLength(10)
@@ -423,7 +459,9 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 
     def apply_style(self, overwrite=False):
         n = styles.apply(self.style_key, self._meshes(), overwrite=overwrite)
-        self.status("%s: gave %d object(s) a look." % (styles.STYLES[self.style_key]["label"], n))
+        kept = len([t for t in self._meshes() if looks_mod.get_source(t) == "hand"]) if not overwrite else 0
+        self.status("%s: restyled %d object(s)%s." % (styles.STYLES[self.style_key]["label"], n,
+                    ", kept %d you picked by hand" % kept if kept else ""))
         if self.preview_chk.isChecked():
             looks_mod.preview_on()
         self.refresh_table()
@@ -518,6 +556,11 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 
     def run_check(self):
         self.results = preflight.run_all(camera=self.cam_combo.currentData(), objects=self._selected_objects())
+        for r in self.results:
+            # objects without a look get the current style's looks, not a generic default
+            if r.title == "Looks assigned" and r.status == preflight.WARN and r.nodes:
+                r.fix = lambda nodes=list(r.nodes): styles.apply(self.style_key, nodes)
+                r.fix_label = "Use %s looks" % styles.STYLES[self.style_key]["label"]
         while self.issue_box.count():
             w = self.issue_box.takeAt(0).widget()
             if w:
@@ -585,7 +628,7 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         card = Card(3, "Render", "Blender works in the background; Maya stays usable.")
         form = QtWidgets.QFormLayout()
         form.setLabelAlignment(QtCore.Qt.AlignRight)
-        self.cam_combo = QtWidgets.QComboBox()
+        self.cam_combo = Combo()
         self.cam_combo.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.cam_combo.setMinimumContentsLength(12)
         form.addRow("Camera", self.cam_combo)
@@ -594,8 +637,8 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         form.addRow("Frames", range_w)
         crow = QtWidgets.QHBoxLayout()
         crow.setContentsMargins(0, 0, 0, 0)
-        self.start_spin = QtWidgets.QSpinBox()
-        self.end_spin = QtWidgets.QSpinBox()
+        self.start_spin = SpinBox()
+        self.end_spin = SpinBox()
         for s in (self.start_spin, self.end_spin):
             s.setRange(-100000, 100000)
             s.valueChanged.connect(lambda _v: self._update_range_label())
@@ -642,18 +685,18 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.adv = QtWidgets.QWidget()
         af = QtWidgets.QFormLayout(self.adv)
         af.setLabelAlignment(QtCore.Qt.AlignRight)
-        self.line_combo = QtWidgets.QComboBox()
+        self.line_combo = Combo()
         for label, mode in [("2D ink lines", "ink"), ("3D outlines (hull)", "hull"), ("Both", "both")]:
             self.line_combo.addItem(label, mode)
         af.addRow("Lines", self.line_combo)
-        self.outline_spin = QtWidgets.QDoubleSpinBox()
+        self.outline_spin = DoubleSpinBox()
         self.outline_spin.setRange(0.0, 10.0)
         self.outline_spin.setSingleStep(0.25)
         self.outline_spin.setValue(1.0)
         self.outline_spin.setSuffix(" ×")
         self.outline_spin.setToolTip("0 turns lines off")
         af.addRow("Line width", self.outline_spin)
-        self.misreg_spin = QtWidgets.QSpinBox()
+        self.misreg_spin = SpinBox()
         self.misreg_spin.setRange(0, 12)
         self.misreg_spin.setSuffix(" px")
         af.addRow("Colour offset", self.misreg_spin)
@@ -891,6 +934,13 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         if len(self.viewer.frames) > 1:
             cmds.setAttr(s + ".useFrameExtension", 1)
         cmds.setAttr(s + ".fit", 1)                       # best fit to the resolution gate
+        # The frames are finished display colours. Maya's colour management would run
+        # them through its film view transform again and wash them out (seen live).
+        cm = s + ".colorManagementEnabled"
+        if cmds.objExists(cm):
+            for src in cmds.listConnections(cm, source=True, destination=False, plugs=True) or []:
+                cmds.disconnectAttr(src, cm)      # it follows the global switch; only this plane opts out
+            cmds.setAttr(cm, 0)
         near = cmds.getAttr(shape + ".nearClipPlane")
         cmds.setAttr(s + ".depth", max(near * 2.0, 0.2))  # in front of every object
         self.status("Look through %s and scrub the timeline to see the toon frames." % exporter.short_name(cam))

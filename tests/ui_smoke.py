@@ -70,7 +70,8 @@ check("style saved in the scene", cmds.getAttr("defaultRenderGlobals.toonStyle")
 
 panel.choose_style("cel", apply=False)
 n = panel.apply_style(overwrite=True)
-check("apply style replaces all looks when asked", n == len(looks.mesh_transforms())
+check("apply style replaces all looks when asked",
+      all(looks.get_look(t) == styles.look_for("cel", t) for t in looks.mesh_transforms())
       and looks.get_look("|antenna") == "cel_2d")
 panel.choose_style("pop", apply=False)
 panel.apply_style(overwrite=True)
@@ -82,6 +83,10 @@ combo.setCurrentIndex(combo.findData("manga_ink"))
 check("changing a row's look tags the object", looks.get_look(target) == "manga_ink")
 
 check("Fix all clears the errors", panel.fix_all())
+panel.choose_style("flat")
+check("switching style restyles style/auto looks", looks.get_look("|bean_GRP|bean_rig|bean_root_jnt|bean_mid_jnt|bean_top_jnt|bean_head") == "flat_ink")
+check("...but keeps the look picked by hand", looks.get_look(target) == "manga_ink")
+panel.choose_style("pop")
 check("check is green after fixing", panel.run_check())
 
 cmds.currentTime(40)

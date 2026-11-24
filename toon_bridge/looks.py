@@ -45,23 +45,39 @@ def get_look(transform):
     return None
 
 
-def assign(look, nodes=None):
-    """Tag the selected (or given) meshes with `look`. Returns the transforms."""
+SOURCE_ATTR = "toonLookSource"     # "hand" | "style" | "auto": who picked the look
+
+
+def assign(look, nodes=None, source="hand"):
+    """Tag the selected (or given) meshes with `look`. Returns the transforms.
+
+    `source` records who chose it, so switching styles can re-style everything
+    except looks an artist picked by hand.
+    """
     nodes = nodes or cmds.ls(selection=True, long=True)
     targets = mesh_transforms(nodes)
     for t in targets:
-        if not cmds.attributeQuery(LOOK_ATTR, node=t, exists=True):
-            cmds.addAttr(t, longName=LOOK_ATTR, dataType="string")
+        for attr in (LOOK_ATTR, SOURCE_ATTR):
+            if not cmds.attributeQuery(attr, node=t, exists=True):
+                cmds.addAttr(t, longName=attr, dataType="string")
         cmds.setAttr(t + "." + LOOK_ATTR, look, type="string")
+        cmds.setAttr(t + "." + SOURCE_ATTR, source, type="string")
     return targets
+
+
+def get_source(transform):
+    if cmds.attributeQuery(SOURCE_ATTR, node=transform, exists=True):
+        return cmds.getAttr(transform + "." + SOURCE_ATTR) or "hand"
+    return "hand" if get_look(transform) else None
 
 
 def clear(nodes=None):
     nodes = nodes or cmds.ls(selection=True, long=True)
     targets = mesh_transforms(nodes)
     for t in targets:
-        if cmds.attributeQuery(LOOK_ATTR, node=t, exists=True):
-            cmds.deleteAttr(t + "." + LOOK_ATTR)
+        for attr in (LOOK_ATTR, SOURCE_ATTR):
+            if cmds.attributeQuery(attr, node=t, exists=True):
+                cmds.deleteAttr(t + "." + attr)
     return targets
 
 

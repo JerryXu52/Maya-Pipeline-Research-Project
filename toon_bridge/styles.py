@@ -68,14 +68,19 @@ def look_for(style_key, transform):
 
 
 def plan(style_key, transforms, overwrite=False):
-    """[(transform, look)] that auto-assign would apply. Keeps hand-picked looks unless overwrite."""
+    """[(transform, look)] a style would apply.
+
+    Objects with no look, or a look that came from a style or an automatic fix,
+    are re-styled. Looks picked by hand are kept unless overwrite.
+    """
     from . import looks as looks_mod     # Maya-only; styles.py is also read by Blender scripts
     out = []
     for t in transforms:
-        current = looks_mod.get_look(t)
-        if current and not overwrite:
+        if not overwrite and looks_mod.get_look(t) and looks_mod.get_source(t) == "hand":
             continue
-        out.append((t, look_for(style_key, t)))
+        new = look_for(style_key, t)
+        if looks_mod.get_look(t) != new:
+            out.append((t, new))
     return out
 
 
@@ -87,5 +92,5 @@ def apply(style_key, transforms, overwrite=False):
     for t, look in changes:
         by_look.setdefault(look, []).append(t)
     for look, ts in by_look.items():
-        looks_mod.assign(look, ts)
+        looks_mod.assign(look, ts, source="style")
     return len(changes)
