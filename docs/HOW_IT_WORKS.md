@@ -28,6 +28,12 @@ A walk through every part, in the order the data flows. Each section says
   standardSurface/aiStandardSurface/openPBR). The `toon_auto`, `cel_hard`,
   etc. looks keep this colour, so an artist does not have to recolour anything.
   Textured shaders fall back to grey: a toon look uses one flat colour.
+* `object_texture()` finds the colour map feeding the shader colour (through
+  colour-correct/composite nodes). If the shader type is unknown (an Arnold
+  shader without Arnold installed), it searches everything upstream and picks
+  the map whose name looks like a colour map (diffuse/base/albedo), skipping
+  normal/gloss/mask maps. In Blender, `textured_copy()` swaps the look's
+  "Maya colour" node for an Image Texture; pop looks posterize it (Vector Math > Snap).
 * **Viewport preview**: `preview_on()` swaps each tagged mesh to a Maya
   `rampShader` (input = Brightness, interpolation = None). That is Maya's
   nearest thing to Shader to RGB + a Constant ramp, so the viewport shows the

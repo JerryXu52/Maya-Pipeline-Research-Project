@@ -141,6 +141,33 @@ blender -b --python blender/build_library.py -- --sheet docs/images/look_sheet.p
 
 ![Camera match](docs/images/camera_match_36.png)
 
+### Stress test on hard, real scenes (`mayapy tests/stress_scenes.py`)
+
+The demo is my own simple scene, so I also ran the example scenes that ship
+with Maya 2026 through the whole tool: open → pre-flight + fixes → test camera
+move → export 12 frames → render in the pop-art look.
+
+| Scene | What makes it hard | Result |
+|---|---|---|
+| `rp_eric_rigged_HIK_arnold` | scanned human, HumanIK rig (142 joints, skinned), Arnold shader without Arnold installed, colour map behind a composite node | OK, 4.8 s. Texture found by searching upstream of the unknown shader |
+| `M4Y4-B07` robot rig | 23 meshes, 10 skin clusters, blendshape/expression control meshes, standardSurface + textures | OK, 4.1 s. Pre-flight fixed **10 duplicate names**; control shapes left out with "Only selected objects" |
+| `rp_sophia_posed_100k_arnold` | 100,002-polygon scan, textured | OK, 8.5 s |
+| `Interactive_LightingAndShading` (town) | environment: 63 meshes, 39,803 polys, `houses:` namespace, 30 textured, 4 non-directional lights | OK, 10.7 s. Pre-flight fixed **40 duplicate names** created by stripping the namespace |
+| `TutorialBuildingDemo` | tutorial scene with UI scripts that run on open | OK after opening with script nodes off (the scripts crashed headless Maya, not the bridge) |
+
+![Scanned human](docs/images/stress_eric.png)
+![Robot rig](docs/images/stress_robot.png)
+![Town environment](docs/images/stress_room.png)
+
+**What the stress test changed in the tool:** texture support (colour maps are sent
+and posterized under the halftone), finding colour maps behind unknown/Arnold
+shaders, an "Only selected objects" option, and a better pre-flight texture check.
+
+**What it showed still needs work:** photo textures + the pop look's saturation
+boost go garish (cyan/purple streets); my joint-rotation test did nothing on the
+HumanIK rig (the rig drives the joints), so deformation on these rigs was only
+tested on my own skinned demo character.
+
 ## What I learned
 
 * **3D-to-2D needs screen-space lines.** World-space outlines (inverted hull)
@@ -169,7 +196,8 @@ blender -b --python blender/build_library.py -- --sheet docs/images/look_sheet.p
 
 ## What doesn't work yet
 
-* **Textures**: looks use one flat colour per object; textured objects come out grey.
+* **Textures**: one colour map per object is used (no UDIMs, no per-face materials);
+  photo textures look garish with the pop look's saturation boost.
 * **Misregistration wraps at the frame edge** (a 3-px coloured line on the opposite border).
 * **Halftone dots are screen-locked**: they don't stick to the surface when the camera moves (that's the printed look, but some shots may want object-space dots).
 * **Point/spot/area light intensity** is approximate (directional is exact);
@@ -201,7 +229,7 @@ blender -b --python blender/build_library.py -- --sheet docs/images/look_sheet.p
 toon_bridge/   Maya package: ui.py, looks.py, preflight.py, exporter.py, launcher.py, convert.py
 blender/       render.py, toon_materials.py, build_library.py, looks.json, look_library.blend
 demo/          make_demo_scene.py, toon_demo.ma, make_video.py
-tests/         test_convert.py, test_light_match.py, camera_match.py, run_end_to_end.py, ui_smoke.py
+tests/         test_convert.py, test_light_match.py, camera_match.py, run_end_to_end.py, ui_smoke.py, stress_scenes.py
 docs/          HOW_IT_WORKS.md, PROPOSAL.md (original), images/, video/
 drag_into_maya.py   installer
 ```
