@@ -170,6 +170,7 @@ def export_shot(camera, start, end, shot_dir=None, settings=None, objects=None):
             "maya_path": t,
             "look": looks_mod.get_look(t) or looks_mod.DEFAULT_LOOK,
             "color": looks_mod.object_color(t),
+            "texture": looks_mod.object_texture(t),
         })
 
     st = dict(DEFAULT_SETTINGS)

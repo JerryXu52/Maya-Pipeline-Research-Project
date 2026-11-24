@@ -124,6 +124,80 @@ def object_color(transform):
     return [max(0.0, min(1.0, c * weight)) for c in rgb]
 
 
+def _file_path(node):
+    """Resolved image path of a Maya file / aiImage node, or None if missing on disk."""
+    kind = cmds.nodeType(node)
+    cands = []
+    if kind == "file":
+        for attr in ("computedFileTextureNamePattern", "fileTextureName"):
+            try:
+                cands.append(cmds.getAttr(node + "." + attr))
+            except (RuntimeError, ValueError):
+                pass
+    elif kind == "aiImage":
+        cands.append(cmds.getAttr(node + ".filename"))
+    scene_dir = os.path.dirname(cmds.file(query=True, sceneName=True) or "")
+    for c in cands:
+        if not c or "<UDIM>" in c or "<udim>" in c:
+            continue
+        if os.path.isfile(c):
+            return os.path.abspath(c)
+        for root in (scene_dir, os.path.join(scene_dir, "..", "sourceimages"),
+                     cmds.workspace(query=True, rootDirectory=True)):
+            p = os.path.join(root, c) if not os.path.isabs(c) else os.path.join(root, os.path.basename(c))
+            if os.path.isfile(p):
+                return os.path.abspath(p)
+    return None
+
+
+def object_texture(transform):
+    """The colour texture feeding the object's shader colour, if there is one.
+
+    Follows the colour input upstream (through colour-correct or multiply
+    nodes) to the first file / aiImage node. UDIM sets are not supported.
+    """
+    sg = None
+    if cmds.attributeQuery(PREVIEW_ORIG_ATTR, node=transform, exists=True):
+        sg = cmds.getAttr(transform + "." + PREVIEW_ORIG_ATTR) or None
+    sg = sg or shading_engine(transform)
+    if not sg:
+        return None
+    shaders = cmds.listConnections(sg + ".surfaceShader") or []
+    if not shaders:
+        return None
+    shader = shaders[0]
+    color_attr = COLOR_ATTRS.get(cmds.nodeType(shader), ("color", None))[0].split("[")[0]
+    if cmds.objExists(shader + "." + color_attr):
+        src = cmds.listConnections(shader + "." + color_attr, source=True, destination=False) or []
+        if not src:
+            return None
+        candidates = [src[0]] + (cmds.listHistory(src[0]) or [])
+    else:
+        # Unknown shader type (e.g. Arnold shader without the Arnold plug-in loaded):
+        # we can't tell which input is colour, so search everything upstream.
+        candidates = cmds.listHistory(shader) or []
+    files = [n for n in candidates if cmds.nodeType(n) in ("file", "aiImage")]
+    return _best_color_map(files)
+
+
+NOT_COLOR = ("norm", "bump", "disp", "gloss", "rough", "spec", "mask", "metal", "ao", "opac", "height")
+IS_COLOR = ("diff", "base", "albedo", "col", "dif")
+
+
+def _best_color_map(files):
+    """Pick the most likely colour map: named like a colour map, never a normal/gloss/mask."""
+    scored = []
+    for f in files:
+        path = _file_path(f)
+        if not path:
+            continue
+        key = (f + " " + os.path.basename(path)).lower()
+        if any(k in key for k in NOT_COLOR) and not any(k in key for k in IS_COLOR):
+            continue
+        scored.append((0 if any(k in key for k in IS_COLOR) else 1, path))
+    return sorted(scored)[0][1] if scored else None
+
+
 # ---------------------------------------------------------------- viewport preview
 def _preview_shader(look_name, look, rgb):
     """A Maya rampShader that roughly mimics the look in Viewport 2.0.

@@ -66,6 +66,36 @@ def append_materials(names):
     return {m.name: m for m in dst.materials if m is not None}
 
 
+def textured_copy(mat, path, obj_name, posterize=False):
+    """Per-object copy of a look whose base colour comes from the Maya texture.
+
+    The look's 'Maya colour' Attribute node is swapped for an Image Texture
+    (UVs come across in the Alembic). Pop looks posterize the texture into
+    flat steps (Vector Math > Snap) so it reads as printed colour, not a photo.
+    """
+    new = mat.copy()
+    new.name = "%s__%s" % (mat.name, obj_name)
+    nodes, links = new.node_tree.nodes, new.node_tree.links
+    for n in list(nodes):
+        if n.type == "ATTRIBUTE" and n.attribute_name == tm.COLOR_ATTR:
+            img = nodes.new("ShaderNodeTexImage")
+            img.image = bpy.data.images.load(path, check_existing=True)
+            img.location = n.location
+            out = img.outputs["Color"]
+            if posterize:
+                snap = nodes.new("ShaderNodeVectorMath")
+                snap.operation = "SNAP"
+                snap.inputs[1].default_value = (0.2, 0.2, 0.2)
+                snap.location = (n.location.x + 200, n.location.y)
+                links.new(out, snap.inputs[0])
+                out = snap.outputs[0]
+            for link in list(n.outputs["Color"].links):
+                links.new(out, link.to_socket)
+            nodes.remove(n)
+    say("TEXTURE", obj_name, os.path.basename(path))
+    return new
+
+
 def import_geometry(shot, shot_dir):
     abc = os.path.join(shot_dir, shot["alembic"])
     before = set(bpy.data.objects)
@@ -91,7 +121,11 @@ def apply_looks(shot, imported, looks, outlines_on, hull=True):
             look = DEFAULT_LOOK
         ob[tm.COLOR_ATTR] = info.get("color", [0.8, 0.8, 0.8])
         ob.data.materials.clear()
-        ob.data.materials.append(mats[look])
+        mat = mats[look]
+        tex = info.get("texture")
+        if tex and os.path.isfile(tex):
+            mat = textured_copy(mat, tex, ob.name, posterize=looks[look].get("type") == "pop")
+        ob.data.materials.append(mat)
         # one material for every face (Alembic face sets would add more slots)
         for poly in ob.data.polygons:
             poly.material_index = 0

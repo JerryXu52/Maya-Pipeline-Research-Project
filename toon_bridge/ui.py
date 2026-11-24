@@ -241,6 +241,8 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
                             ("3D hull outlines (per-look width)", "hull"), ("Both", "both")]:
             self.line_combo.addItem(label, mode)
         form.addRow("Line style", self.line_combo)
+        self.sel_only_chk = QtWidgets.QCheckBox("Only selected objects (leave out rig controls, helpers)")
+        form.addRow("Send", self.sel_only_chk)
         pop = QtWidgets.QHBoxLayout()
         self.misreg_spin = QtWidgets.QSpinBox()
         self.misreg_spin.setRange(0, 12)
@@ -423,7 +425,8 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 
     # ------------------------------------------------------------- pre-flight
     def run_preflight(self):
-        self.results = preflight.run_all(camera=self.cam_combo.currentData())
+        objects = cmds.ls(selection=True, long=True) if self.sel_only_chk.isChecked() else None
+        self.results = preflight.run_all(camera=self.cam_combo.currentData(), objects=objects or None)
         self.pf_tree.clear()
         for r in self.results:
             it = QtWidgets.QTreeWidgetItem([r.title, r.summary + ("   [fix: %s]" % r.fix_label if r.fix else "")])
@@ -484,7 +487,11 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         QtWidgets.QApplication.processEvents()
         try:
             cmds.waitCursor(state=True)
-            shot = exporter.export_shot(cam, start, end, shot_dir, self.settings())
+            objects = cmds.ls(selection=True, long=True) if self.sel_only_chk.isChecked() else None
+            if self.sel_only_chk.isChecked() and not objects:
+                self.status("'Only selected objects' is on, but nothing is selected.")
+                return
+            shot = exporter.export_shot(cam, start, end, shot_dir, self.settings(), objects=objects)
         except Exception as exc:
             self.status("Export failed: %s" % exc)
             return

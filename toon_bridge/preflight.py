@@ -114,16 +114,24 @@ def check_lights():
 
 
 def check_textures(meshes):
-    textured = []
+    """Textured meshes send their colour map; a map we can't find falls back to grey."""
+    used, missing = [], []
     for t in meshes:
         sg = looks_mod.shading_engine(t)
         shaders = cmds.listConnections(sg + ".surfaceShader") if sg else None
-        if shaders and cmds.listConnections(shaders[0], source=True, destination=False, type="file"):
-            textured.append(t)
-    if textured:
-        return Result("Flat colours", WARN, "%d meshes are textured; toon looks use one flat colour (grey)." % len(textured),
-                      textured)
-    return Result("Flat colours", OK, "")
+        if not shaders:
+            continue
+        has_tex = cmds.listHistory(shaders[0]) or []
+        has_tex = [n for n in has_tex if cmds.nodeType(n) in ("file", "aiImage")]
+        if not has_tex:
+            continue
+        (used if looks_mod.object_texture(t) else missing).append(t)
+    if missing:
+        return Result("Textures", WARN, "%d textured meshes: colour map not found (or UDIM); they use grey." % len(missing),
+                      missing)
+    if used:
+        return Result("Textures", OK, "%d meshes send their colour map" % len(used))
+    return Result("Textures", OK, "flat colours")
 
 
 def run_all(camera=None, objects=None):
