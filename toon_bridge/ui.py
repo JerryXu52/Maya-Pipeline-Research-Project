@@ -236,6 +236,11 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         opts.addWidget(self.transp_chk)
         opts.addWidget(self.quality_combo)
         form.addRow("Options", opts)
+        self.line_combo = QtWidgets.QComboBox()
+        for label, mode in [("2D ink lines (Freestyle, constant width)", "ink"),
+                            ("3D hull outlines (per-look width)", "hull"), ("Both", "both")]:
+            self.line_combo.addItem(label, mode)
+        form.addRow("Line style", self.line_combo)
         self.outline_spin = QtWidgets.QDoubleSpinBox()
         self.outline_spin.setRange(0.1, 10.0)
         self.outline_spin.setSingleStep(0.25)
@@ -399,6 +404,7 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
             "outlines": self.outline_chk.isChecked(),
             "transparent": self.transp_chk.isChecked(),
             "outline_scale": self.outline_spin.value(),
+            "line_mode": self.line_combo.currentData(),
         }
 
     # ------------------------------------------------------------- pre-flight
