@@ -242,3 +242,49 @@ def setup_world(scene, background, ambient):
     links.new(bg_amb.outputs[0], mix.inputs[1])
     links.new(bg_cam.outputs[0], mix.inputs[2])
     links.new(mix.outputs[0], out.inputs["Surface"])
+
+
+def setup_ink_lines(scene, view_layer, color=(0.07, 0.05, 0.09), outer_px=2.6, inner_px=1.3,
+                    crease_deg=50.0):
+    """2D ink lines with Freestyle: constant width on screen, like a hand-drawn line.
+
+    The inverted hull is a 3D shell, so its line gets thinner with distance
+    and never draws inside the silhouette. Freestyle finds edges in the image
+    instead and draws strokes of a fixed pixel width:
+      outer line : silhouettes, external contour, open borders  (thick)
+      inner line : creases sharper than `crease_deg`            (thin)
+    """
+    import math
+    r = scene.render
+    r.use_freestyle = True
+    r.line_thickness_mode = "ABSOLUTE"
+    r.line_thickness = 1.0
+    fs = view_layer.freestyle_settings
+    fs.mode = "EDITOR"
+    fs.crease_angle = math.radians(crease_deg)
+    fs.use_smoothness = True
+    fs.use_culling = False
+    while len(fs.linesets):
+        fs.linesets.remove(fs.linesets[0])
+
+    def lineset(name, px, **edges):
+        ls = fs.linesets.new(name)
+        ls.select_by_visibility = True
+        ls.visibility = "VISIBLE"
+        ls.select_by_edge_types = True
+        for attr in ("select_silhouette", "select_border", "select_crease", "select_contour",
+                     "select_external_contour", "select_material_boundary", "select_ridge_valley",
+                     "select_suggestive_contour", "select_edge_mark"):
+            setattr(ls, attr, edges.get(attr, False))
+        st = ls.linestyle
+        st.name = "Toon_" + name
+        st.color = color
+        st.thickness = px * scene.render.resolution_percentage / 100.0
+        st.thickness_position = "CENTER"
+        st.caps = "ROUND"
+        st.use_chaining = True
+        return ls
+
+    lineset("outer", outer_px, select_silhouette=True, select_external_contour=True,
+            select_border=True, select_contour=True)
+    lineset("inner", inner_px, select_crease=True, select_material_boundary=True)

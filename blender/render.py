@@ -74,7 +74,7 @@ def import_geometry(shot, shot_dir):
     return [o for o in bpy.data.objects if o not in before]
 
 
-def apply_looks(shot, imported, looks, outlines_on):
+def apply_looks(shot, imported, looks, outlines_on, hull=True):
     by_name = {o["name"]: o for o in shot["objects"]}
     used = {by_name.get(ob.name, {}).get("look", DEFAULT_LOOK) for ob in imported if ob.type == "MESH"}
     used = {u if u in looks else DEFAULT_LOOK for u in used}
@@ -96,7 +96,7 @@ def apply_looks(shot, imported, looks, outlines_on):
         for poly in ob.data.polygons:
             poly.material_index = 0
         width = looks[look].get("outline", {}).get("width_cm", 0) * convert.CM_TO_M * scale
-        if outlines_on and width > 0:
+        if outlines_on and hull and width > 0:
             tm.add_outline(ob, mats.get(look + "__outline"), width)
         report.append((ob.name, look))
     for name, look in sorted(report):
@@ -171,6 +171,52 @@ def build_lights(shot):
     return ambient
 
 
+class DeformBaker(object):
+    """Give Freestyle a plain mesh for every deforming Alembic object.
+
+    Deforming meshes (skinned, blendshapes) are read by a Mesh Sequence Cache
+    modifier. EEVEE shades them correctly, but Freestyle drew their lines from
+    stale geometry (a ghost outline from another pose). So on each frame we
+    evaluate the cache into an ordinary mesh, swap it in, and switch the cache
+    off. Objects that only move (no cache modifier) are left alone.
+    """
+
+    def __init__(self, scene):
+        self.scene = scene
+        self.items = []
+        for ob in scene.objects:
+            if ob.type != "MESH":
+                continue
+            cache = next((m for m in ob.modifiers if m.type == "MESH_SEQUENCE_CACHE"), None)
+            if cache:
+                self.items.append((ob, cache, ob.data))
+        if self.items:
+            say("DEFORMING", len(self.items), "object(s) baked per frame for ink lines")
+
+    def bake(self):
+        for ob, cache, source in self.items:
+            # evaluate the original cache-driven mesh, without outlines
+            old = ob.data
+            ob.data = source
+            cache.show_viewport = True
+            cache.show_render = True
+            hull = [m for m in ob.modifiers if m.type == "SOLIDIFY"]
+            for m in hull:
+                m.show_viewport = False
+            dg = bpy.context.evaluated_depsgraph_get()
+            dg.update()
+            baked = bpy.data.meshes.new_from_object(ob.evaluated_get(dg), preserve_all_data_layers=True,
+                                                    depsgraph=dg)
+            ob.data = baked
+            cache.show_viewport = False
+            cache.show_render = False
+            for m in hull:
+                m.show_viewport = True
+            if old is not source:
+                bpy.data.meshes.remove(old)
+        bpy.context.view_layer.update()
+
+
 def main():
     args = parse_args()
     t0 = time.time()
@@ -186,7 +232,8 @@ def main():
 
     imported = import_geometry(shot, shot_dir)
     say("IMPORTED", len(imported), "objects")
-    apply_looks(shot, imported, looks, st.get("outlines", True))
+    line_mode = st.get("line_mode", "ink")       # ink | hull | both
+    apply_looks(shot, imported, looks, st.get("outlines", True), hull=line_mode in ("hull", "both"))
     build_camera(shot)
     ambient = build_lights(shot)
     if not any(ambient):
@@ -198,6 +245,11 @@ def main():
     if args["preview"]:
         scene.render.resolution_percentage = 50
     tm.setup_world(scene, st.get("background", [0.92, 0.91, 0.87]), ambient)
+    if st.get("outlines", True) and line_mode in ("ink", "both"):
+        px = st.get("line_px", 2.6) * st.get("outline_scale", 1.0)
+        tm.setup_ink_lines(scene, bpy.context.view_layer, color=st.get("line_color", [0.07, 0.05, 0.09]),
+                           outer_px=px, inner_px=px * 0.5)
+        say("LINES ink", px)
 
     if args["frame"] is not None:
         frames = [args["frame"]]
@@ -213,8 +265,11 @@ def main():
     pattern = os.path.join(shot_dir, shot.get("output", "frames/toon.####.png"))
     os.makedirs(os.path.dirname(pattern), exist_ok=True)
     say("TOTAL", len(frames))
+    baker = DeformBaker(scene) if scene.render.use_freestyle else None
     for i, f in enumerate(frames):
         scene.frame_set(f)
+        if baker:
+            baker.bake()
         path = pattern.replace("####", "%04d" % f)
         scene.render.filepath = path
         bpy.ops.render.render(write_still=True)

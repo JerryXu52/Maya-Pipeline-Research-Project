@@ -45,12 +45,17 @@ def key(obj, attr, pairs):
 
 def build_character():
     """A bean-shaped buddy: skinned body that bends, head, eyes, scarf."""
-    body = cmds.polyCylinder(name="bean_body", radius=18, height=50, subdivisionsX=32,
+    body = cmds.polyCylinder(name="bean_body", radius=18, height=32, subdivisionsX=32,
                              subdivisionsY=12, subdivisionsZ=4, roundCap=True)[0]
     cmds.move(0, 25, 0, body)
     cmds.makeIdentity(body, apply=True, translate=True)
     cmds.polySmooth(body, divisions=1)
     cmds.delete(body, constructionHistory=True)
+    # rest the rounded bottom ON the ground: geometry buried below the ground
+    # confuses Freestyle's hidden-line test (ghost line, missing silhouette)
+    min_y = cmds.exactWorldBoundingBox(body)[1]
+    cmds.move(0, -min_y + 0.5, 0, body, relative=True)
+    cmds.makeIdentity(body, apply=True, translate=True)
 
     cmds.select(clear=True)
     j0 = cmds.joint(name="bean_root_jnt", position=(0, 0, 0))
@@ -80,7 +85,7 @@ def build_character():
     paint(head, lambert("bean_head_mat", (1.0, 0.85, 0.72)))
     paint([eye_l, eye_r], lambert("bean_eye_mat", (0.08, 0.07, 0.12)))
     paint(scarf, lambert("bean_scarf_mat", (0.85, 0.16, 0.22)))
-    looks.assign("toon_auto", [body])
+    looks.assign("cel_2d", [body])
     looks.assign("anime_skin", [head])
     looks.assign("flat_ink", [eye_l, eye_r])
     looks.assign("cel_hard", [scarf])
@@ -95,9 +100,9 @@ def build_character():
 
 
 def build_set():
-    ground = cmds.polyPlane(name="ground", width=20000, height=20000, subdivisionsX=10, subdivisionsY=10)[0]
+    ground = cmds.polyPlane(name="ground", width=20000, height=20000, subdivisionsX=120, subdivisionsY=120)[0]
     paint(ground, lambert("ground_mat", (0.72, 0.80, 0.55)))
-    looks.assign("painted_ground", [ground])
+    looks.assign("ground_2d", [ground])
 
     sg_leaf = lambert("leaf_mat", (0.30, 0.62, 0.35))
     sg_trunk = lambert("trunk_mat", (0.48, 0.32, 0.22))
@@ -109,7 +114,7 @@ def build_set():
         cmds.move(x, 40 * s + 45 * s, z, crown)
         paint(trunk, sg_trunk)
         paint(crown, sg_leaf)
-        looks.assign("cel_hard", [trunk, crown])
+        looks.assign("cel_2d", [trunk, crown])
         trees.append(cmds.group(trunk, crown, name="tree%d_GRP" % i))
 
     rocks = []
@@ -120,7 +125,7 @@ def build_set():
         cmds.rotate(20 * i, 37 * i, 0, r)
         paint(r, sg_rock)
         rocks.append(r)
-    looks.assign("toon_auto", rocks)
+    looks.assign("cel_2d", rocks)
 
     # floating drone: cel metal ball with an orbiting ring
     drone = cmds.polySphere(name="drone_body", radius=12, subdivisionsX=40, subdivisionsY=30)[0]

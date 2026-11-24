@@ -29,6 +29,9 @@ DEFAULT_SETTINGS = {
     "background": [0.92, 0.91, 0.87],
     "ambient": [0.04, 0.04, 0.05],
     "outline_scale": 1.0,
+    "line_mode": "ink",          # ink = Freestyle 2D lines, hull = inverted hull, both
+    "line_px": 3.2,
+    "line_color": [0.05, 0.03, 0.07],
 }
 
 

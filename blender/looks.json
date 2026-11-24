@@ -1,48 +1,322 @@
 {
-  "_doc": "Toon look library. Each look becomes one EEVEE material in look_library.blend (built by build_library.py). base_color 'maya' means: take the colour from the object's Maya shader. bands are Constant Color Ramp stops [position, multiplier colour] applied to the Shader-to-RGB light value. outline width is in Maya centimetres.",
+  "_doc": "Toon look library. Each look becomes one EEVEE material in look_library.blend (built by build_library.py). base_color 'maya' means: take the colour from the object's Maya shader. bands are Constant Color Ramp stops [position, multiplier colour] applied to the Shader-to-RGB light value. outline width is in Maya centimetres. Bands above 1.0 brighten (a small highlight band).",
+  "cel_2d": {
+    "label": "Cel 2D (anime two-tone, cool shadow)",
+    "base_color": "maya",
+    "bands": [
+      [
+        0.0,
+        [
+          0.6,
+          0.52,
+          0.8
+        ]
+      ],
+      [
+        0.42,
+        [
+          1.0,
+          1.0,
+          1.0
+        ]
+      ]
+    ],
+    "outline": {
+      "width_cm": 0.35,
+      "color": [
+        0.07,
+        0.05,
+        0.09
+      ]
+    }
+  },
+  "ground_2d": {
+    "label": "Ground 2D (flat, crisp cast shadows)",
+    "base_color": "maya",
+    "bands": [
+      [
+        0.0,
+        [
+          0.66,
+          0.62,
+          0.86
+        ]
+      ],
+      [
+        0.35,
+        [
+          1.0,
+          1.0,
+          1.0
+        ]
+      ]
+    ]
+  },
   "toon_auto": {
     "label": "Toon (keep Maya colour)",
     "base_color": "maya",
-    "bands": [[0.0, [0.42, 0.40, 0.55]], [0.28, [0.78, 0.76, 0.84]], [0.62, [1.0, 1.0, 1.0]]],
-    "rim": {"threshold": 0.72, "color": [0.25, 0.25, 0.3]},
-    "outline": {"width_cm": 0.35, "color": [0.06, 0.05, 0.08]}
+    "bands": [
+      [
+        0.0,
+        [
+          0.42,
+          0.4,
+          0.55
+        ]
+      ],
+      [
+        0.28,
+        [
+          0.78,
+          0.76,
+          0.84
+        ]
+      ],
+      [
+        0.62,
+        [
+          1.0,
+          1.0,
+          1.0
+        ]
+      ]
+    ],
+    "rim": {
+      "threshold": 0.72,
+      "color": [
+        0.25,
+        0.25,
+        0.3
+      ]
+    },
+    "outline": {
+      "width_cm": 0.35,
+      "color": [
+        0.06,
+        0.05,
+        0.08
+      ]
+    }
   },
   "anime_skin": {
     "label": "Anime skin",
-    "base_color": [1.0, 0.80, 0.68],
-    "bands": [[0.0, [0.80, 0.55, 0.58]], [0.32, [1.0, 1.0, 1.0]]],
-    "rim": {"threshold": 0.75, "color": [0.25, 0.12, 0.1]},
-    "outline": {"width_cm": 0.25, "color": [0.35, 0.15, 0.12]}
+    "base_color": [
+      1.0,
+      0.8,
+      0.68
+    ],
+    "bands": [
+      [
+        0.0,
+        [
+          0.8,
+          0.55,
+          0.58
+        ]
+      ],
+      [
+        0.32,
+        [
+          1.0,
+          1.0,
+          1.0
+        ]
+      ]
+    ],
+    "rim": {
+      "threshold": 0.75,
+      "color": [
+        0.25,
+        0.12,
+        0.1
+      ]
+    },
+    "outline": {
+      "width_cm": 0.25,
+      "color": [
+        0.35,
+        0.15,
+        0.12
+      ]
+    }
   },
   "cel_hard": {
     "label": "Comic cel (2 bands, heavy ink)",
     "base_color": "maya",
-    "bands": [[0.0, [0.35, 0.33, 0.45]], [0.35, [1.0, 1.0, 1.0]]],
-    "outline": {"width_cm": 0.8, "color": [0.0, 0.0, 0.0]}
+    "bands": [
+      [
+        0.0,
+        [
+          0.35,
+          0.33,
+          0.45
+        ]
+      ],
+      [
+        0.35,
+        [
+          1.0,
+          1.0,
+          1.0
+        ]
+      ]
+    ],
+    "outline": {
+      "width_cm": 0.8,
+      "color": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
   },
   "cel_metal": {
     "label": "Cel metal (bands + specular + rim)",
     "base_color": "maya",
-    "bands": [[0.0, [0.30, 0.32, 0.40]], [0.22, [0.62, 0.64, 0.72]], [0.55, [1.0, 1.0, 1.0]]],
-    "specular": {"roughness": 0.25, "threshold": 0.35, "color": [0.9, 0.9, 0.9]},
-    "rim": {"threshold": 0.62, "color": [0.35, 0.45, 0.6]},
-    "outline": {"width_cm": 0.4, "color": [0.03, 0.03, 0.05]}
+    "bands": [
+      [
+        0.0,
+        [
+          0.3,
+          0.32,
+          0.4
+        ]
+      ],
+      [
+        0.22,
+        [
+          0.62,
+          0.64,
+          0.72
+        ]
+      ],
+      [
+        0.55,
+        [
+          1.0,
+          1.0,
+          1.0
+        ]
+      ]
+    ],
+    "specular": {
+      "roughness": 0.25,
+      "threshold": 0.35,
+      "color": [
+        0.9,
+        0.9,
+        0.9
+      ]
+    },
+    "rim": {
+      "threshold": 0.62,
+      "color": [
+        0.35,
+        0.45,
+        0.6
+      ]
+    },
+    "outline": {
+      "width_cm": 0.4,
+      "color": [
+        0.03,
+        0.03,
+        0.05
+      ]
+    }
   },
   "painted_ground": {
     "label": "Painted ground (soft, no outline)",
     "base_color": "maya",
-    "bands": [[0.0, [0.50, 0.50, 0.66]], [0.2, [0.80, 0.80, 0.88]], [0.5, [1.0, 1.0, 1.0]]]
+    "bands": [
+      [
+        0.0,
+        [
+          0.5,
+          0.5,
+          0.66
+        ]
+      ],
+      [
+        0.2,
+        [
+          0.8,
+          0.8,
+          0.88
+        ]
+      ],
+      [
+        0.5,
+        [
+          1.0,
+          1.0,
+          1.0
+        ]
+      ]
+    ]
   },
   "flat_ink": {
     "label": "Flat 2D (unlit colour + ink line)",
     "base_color": "maya",
-    "bands": [[0.0, [1.0, 1.0, 1.0]]],
-    "outline": {"width_cm": 0.6, "color": [0.0, 0.0, 0.0]}
+    "bands": [
+      [
+        0.0,
+        [
+          1.0,
+          1.0,
+          1.0
+        ]
+      ]
+    ],
+    "outline": {
+      "width_cm": 0.6,
+      "color": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
   },
   "manga_ink": {
     "label": "Manga (black and white)",
-    "base_color": [1.0, 1.0, 1.0],
-    "bands": [[0.0, [0.12, 0.12, 0.12]], [0.18, [0.62, 0.62, 0.62]], [0.5, [1.0, 1.0, 1.0]]],
-    "outline": {"width_cm": 0.7, "color": [0.0, 0.0, 0.0]}
+    "base_color": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "bands": [
+      [
+        0.0,
+        [
+          0.12,
+          0.12,
+          0.12
+        ]
+      ],
+      [
+        0.18,
+        [
+          0.62,
+          0.62,
+          0.62
+        ]
+      ],
+      [
+        0.5,
+        [
+          1.0,
+          1.0,
+          1.0
+        ]
+      ]
+    ],
+    "outline": {
+      "width_cm": 0.7,
+      "color": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
   }
 }
