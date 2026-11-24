@@ -18,3 +18,6 @@ __pycache__/
 
 # pre-rendered presentation frames
 demo/toon_bridge/
+
+# Look Editor backups of unsaved edits
+blender/looks_unsaved_backup_*.json
