@@ -15,7 +15,7 @@ import sys
 import bpy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
+sys.path[:0] = [HERE, os.path.dirname(HERE)]
 import toon_materials as tm  # noqa: E402
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -49,7 +49,9 @@ for i, (name, look) in enumerate(looks.items()):
         ob.name = "preview_" + name
         ob[tm.COLOR_ATTR] = PREVIEW_COLORS[i % len(PREVIEW_COLORS)]
         ob.data.materials.append(mat)
-        tm.add_outline(ob, omat, look.get("outline", {}).get("width_cm", 0) * 0.01 * 2)
+        from toon_bridge import lookdefs
+        o = lookdefs.normalize(look)["outline"]
+        tm.add_outline(ob, omat, (o.get("width_cm", 0) if o.get("enabled") else 0) * 0.01 * 2)
 
 bpy.ops.mesh.primitive_plane_add(size=60, location=(0, 0, 0))
 ground = bpy.context.object

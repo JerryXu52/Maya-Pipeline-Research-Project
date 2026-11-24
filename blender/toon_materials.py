@@ -34,97 +34,177 @@ def _gt_mask(nodes, links, src_socket, threshold, x, y):
     return m.outputs[0]
 
 
+def _rgba(c):
+    return (c[0], c[1], c[2], 1.0)
+
+
 def build_look(name, look):
-    if look.get("type") == "pop":
-        return build_pop_look(name, look)
+    """One EEVEE node tree for any look (see toon_bridge/lookdefs.py for the template).
+
+    Every node gets a readable name and label (TB ...), so the tree is easy to
+    follow when it is opened in Blender's node editor.
+    """
+    import math
+    from toon_bridge import lookdefs
+    lk = lookdefs.normalize(look)
     mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     mat.use_nodes = True
     mat.use_fake_user = True
-    nt = mat.node_tree
-    nodes, links = nt.nodes, nt.links
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
     nodes.clear()
 
-    out = nodes.new("ShaderNodeOutputMaterial")
-    out.location = (1400, 0)
-    emit = nodes.new("ShaderNodeEmission")
-    emit.location = (1200, 0)
+    def node(kind, label, x, y):
+        n = nodes.new(kind)
+        n.name = n.label = label
+        n.location = (x, y)
+        return n
+
+    def mix(fac, a, b, label, x, y):
+        m = node("ShaderNodeMix", label, x, y)
+        m.data_type = "RGBA"
+        links.new(fac, m.inputs["Factor"])
+        if isinstance(a, (list, tuple)):
+            m.inputs[6].default_value = _rgba(a)
+        else:
+            links.new(a, m.inputs[6])
+        if isinstance(b, (list, tuple)):
+            m.inputs[7].default_value = _rgba(b)
+        else:
+            links.new(b, m.inputs[7])
+        return m.outputs[2]
+
+    def screen_xy():
+        """Window coordinates, aspect-corrected (render.py sets TB Aspect)."""
+        tc = node("ShaderNodeTexCoord", "TB Screen", -1500, -500)
+        sep = node("ShaderNodeSeparateXYZ", "TB Screen XYZ", -1300, -500)
+        links.new(tc.outputs["Window"], sep.inputs[0])
+        asp = node("ShaderNodeValue", "TB_Aspect", -1500, -720)
+        asp.outputs[0].default_value = 16.0 / 9.0
+        x = _math(nodes, links, "MULTIPLY", sep.outputs["X"], asp.outputs[0], (-1100, -500))
+        return x, sep.outputs["Y"]
+
+    def rotated(x, y, angle_deg, freq, xloc, yloc):
+        a = math.radians(angle_deg)
+        ca, sa = math.cos(a), math.sin(a)
+        u = _math(nodes, links, "ADD", _math(nodes, links, "MULTIPLY", x, ca * freq, (xloc, yloc)),
+                  _math(nodes, links, "MULTIPLY", y, sa * freq, (xloc, yloc - 60)), (xloc + 180, yloc))
+        v = _math(nodes, links, "ADD", _math(nodes, links, "MULTIPLY", x, -sa * freq, (xloc, yloc - 140)),
+                  _math(nodes, links, "MULTIPLY", y, ca * freq, (xloc, yloc - 200)), (xloc + 180, yloc - 140))
+        return u, v
+
+    out = node("ShaderNodeOutputMaterial", "TB Output", 2600, 0)
+    emit = node("ShaderNodeEmission", "TB Emission", 2400, 0)
     links.new(emit.outputs[0], out.inputs["Surface"])
 
-    # 1) light value -> bands
-    diff = nodes.new("ShaderNodeBsdfDiffuse")
-    diff.location = (-600, 200)
+    # light value L
+    diff = node("ShaderNodeBsdfDiffuse", "TB Light", -1500, 300)
     diff.inputs["Color"].default_value = (1, 1, 1, 1)
-    s2rgb = nodes.new("ShaderNodeShaderToRGB")
-    s2rgb.location = (-400, 200)
-    links.new(diff.outputs[0], s2rgb.inputs[0])
-    ramp = nodes.new("ShaderNodeValToRGB")
-    ramp.location = (-200, 200)
-    ramp.label = "Toon bands"
+    s2 = node("ShaderNodeShaderToRGB", "TB Shader to RGB", -1300, 300)
+    links.new(diff.outputs[0], s2.inputs[0])
+    bw = node("ShaderNodeRGBToBW", "TB Light value", -1100, 300)
+    links.new(s2.outputs["Color"], bw.inputs[0])
+    L = bw.outputs[0]
+
+    # bands
+    ramp = node("ShaderNodeValToRGB", "TB Bands", -800, 300)
     cr = ramp.color_ramp
     cr.interpolation = "CONSTANT"
-    bands = look.get("bands", [[0.0, [1, 1, 1]]])
+    bands = lk["bands"]
     while len(cr.elements) > 1:
         cr.elements.remove(cr.elements[-1])
     cr.elements[0].position = bands[0][0]
-    cr.elements[0].color = (*bands[0][1], 1)
+    cr.elements[0].color = _rgba(bands[0][1])
     for pos, col in bands[1:]:
         e = cr.elements.new(pos)
-        e.color = (*col, 1)
-    links.new(s2rgb.outputs["Color"], ramp.inputs["Fac"])
+        e.color = _rgba(col)
+    links.new(L, ramp.inputs["Fac"])
 
-    # 2) base colour
-    if look.get("base_color", "maya") == "maya":
-        base = nodes.new("ShaderNodeAttribute")
+    # base colour x bands
+    if lk["base_color"] == "maya":
+        base = node("ShaderNodeAttribute", "TB Base colour", -800, 560)
         base.attribute_type = "OBJECT"
         base.attribute_name = COLOR_ATTR
-        base.label = "Maya colour"
-        base_socket = base.outputs["Color"]
+        base_sock = base.outputs["Color"]
     else:
-        base = nodes.new("ShaderNodeRGB")
-        base.outputs[0].default_value = (*look["base_color"], 1)
-        base.label = "Base colour"
-        base_socket = base.outputs[0]
-    base.location = (-200, 450)
-
-    mul = _vmath(nodes, "MULTIPLY", 100, 300)
-    links.new(base_socket, mul.inputs[0])
+        base = node("ShaderNodeRGB", "TB Base colour", -800, 560)
+        base.outputs[0].default_value = _rgba(lk["base_color"])
+        base_sock = base.outputs[0]
+    mul = node("ShaderNodeVectorMath", "TB Base x Bands", -500, 400)
+    mul.operation = "MULTIPLY"
+    links.new(base_sock, mul.inputs[0])
     links.new(ramp.outputs["Color"], mul.inputs[1])
-    result = mul.outputs[0]
-    x = 300
 
-    # 3) hard specular highlight
-    spec = look.get("specular")
-    if spec:
-        gl = nodes.new("ShaderNodeBsdfGlossy")
-        gl.location = (-600, -150)
-        gl.inputs["Roughness"].default_value = spec.get("roughness", 0.3)
-        s2 = nodes.new("ShaderNodeShaderToRGB")
-        s2.location = (-400, -150)
-        links.new(gl.outputs[0], s2.inputs[0])
-        mask = _gt_mask(nodes, links, s2.outputs["Color"], spec.get("threshold", 0.5), -200, -150)
-        sc = _vmath(nodes, "MULTIPLY", x, -150)
-        sc.inputs[0].default_value = spec.get("color", [1, 1, 1])
+    sat = node("ShaderNodeHueSaturation", "TB Saturation", -300, 400)
+    sat.inputs["Saturation"].default_value = lk["saturation"]
+    links.new(mul.outputs[0], sat.inputs["Color"])
+    result = sat.outputs[0]
+
+    sp = lk["specular"]
+    if sp.get("enabled"):
+        gl = node("ShaderNodeBsdfGlossy", "TB Specular light", -800, 0)
+        gl.inputs["Roughness"].default_value = sp["roughness"]
+        s3 = node("ShaderNodeShaderToRGB", "TB Specular to RGB", -600, 0)
+        links.new(gl.outputs[0], s3.inputs[0])
+        mask = _gt_mask(nodes, links, s3.outputs["Color"], sp["threshold"], -400, 0)
+        sc = node("ShaderNodeVectorMath", "TB Specular colour", -200, 0)
+        sc.operation = "MULTIPLY"
+        sc.inputs[0].default_value = sp["color"]
         links.new(mask, sc.inputs[1])
-        add = _vmath(nodes, "ADD", x + 200, 150)
+        add = node("ShaderNodeVectorMath", "TB Specular", 100, 300)
+        add.operation = "ADD"
         links.new(result, add.inputs[0])
         links.new(sc.outputs[0], add.inputs[1])
         result = add.outputs[0]
-        x += 400
 
-    # 4) rim light (silhouette edge, view dependent)
-    rim = look.get("rim")
-    if rim:
-        lw = nodes.new("ShaderNodeLayerWeight")
-        lw.location = (-400, -400)
-        lw.inputs["Blend"].default_value = 0.5
-        mask = _gt_mask(nodes, links, lw.outputs["Facing"], rim.get("threshold", 0.7), -200, -400)
-        rc = _vmath(nodes, "MULTIPLY", x, -400)
-        rc.inputs[0].default_value = rim.get("color", [0.3, 0.3, 0.3])
-        links.new(mask, rc.inputs[1])
-        add = _vmath(nodes, "ADD", x + 200, 100)
-        links.new(result, add.inputs[0])
-        links.new(rc.outputs[0], add.inputs[1])
-        result = add.outputs[0]
+    ht, hc = lk["halftone"], lk["hatching"]
+    if ht.get("enabled") or hc.get("enabled"):
+        x, y = screen_xy()
+    if ht.get("enabled"):
+        u, v = rotated(x, y, ht.get("angle", 45.0), ht["per_screen"], -900, -300)
+        fu = _math(nodes, links, "SUBTRACT", _math(nodes, links, "FRACT", u, None, (-500, -300)), 0.5, (-300, -300))
+        fv = _math(nodes, links, "SUBTRACT", _math(nodes, links, "FRACT", v, None, (-500, -440)), 0.5, (-300, -440))
+        dist = _math(nodes, links, "SQRT", _math(nodes, links, "ADD",
+                     _math(nodes, links, "MULTIPLY", fu, fu, (-100, -300)),
+                     _math(nodes, links, "MULTIPLY", fv, fv, (-100, -440)), (100, -360)), None, (300, -360))
+        lo = max(ht["below"], 1e-4)
+        t = _math(nodes, links, "MAXIMUM", _math(nodes, links, "DIVIDE",
+                  _math(nodes, links, "SUBTRACT", lo, L, (-500, -160)), lo, (-300, -160)), 0.0, (-100, -160))
+        radius = _math(nodes, links, "MULTIPLY", t, ht["max_dot"], (100, -160))
+        dots = _math(nodes, links, "LESS_THAN", dist, radius, (500, -200))
+        if ht.get("color"):
+            dot_col = list(ht["color"])
+        else:
+            dm = node("ShaderNodeVectorMath", "TB Dot colour", 500, 100)
+            dm.operation = "SCALE"
+            links.new(result, dm.inputs[0])
+            dm.inputs["Scale"].default_value = ht.get("darken", 0.35)
+            dot_col = dm.outputs[0]
+        result = mix(dots, result, dot_col, "TB Halftone", 800, 300)
+    if hc.get("enabled"):
+        u, _v = rotated(x, y, hc.get("angle", -45.0), hc["per_screen"], -900, -800)
+        stripe = _math(nodes, links, "LESS_THAN", _math(nodes, links, "FRACT", u, None, (-500, -800)),
+                       hc["width"], (-300, -800))
+        deep = _math(nodes, links, "LESS_THAN", L, hc["below"], (-300, -940))
+        hatch = _math(nodes, links, "MULTIPLY", stripe, deep, (500, -800))
+        result = mix(hatch, result, list(hc["color"]), "TB Hatching", 1100, 300)
+
+    rim = lk["rim"]
+    if rim.get("enabled"):
+        lw = node("ShaderNodeLayerWeight", "TB Rim facing", 1100, -300)
+        lw.inputs["Blend"].default_value = 0.5 if rim.get("mode", "add") == "add" else 0.45
+        edge = _gt_mask(nodes, links, lw.outputs["Facing"], rim["threshold"], 1300, -300)
+        if rim.get("mode", "add") == "add":
+            rc = node("ShaderNodeVectorMath", "TB Rim colour", 1500, -300)
+            rc.operation = "MULTIPLY"
+            rc.inputs[0].default_value = rim["color"]
+            links.new(edge, rc.inputs[1])
+            add = node("ShaderNodeVectorMath", "TB Rim light", 1800, 300)
+            add.operation = "ADD"
+            links.new(result, add.inputs[0])
+            links.new(rc.outputs[0], add.inputs[1])
+            result = add.outputs[0]
+        else:
+            result = mix(edge, result, list(rim["color"]), "TB Rim light", 1800, 300)
 
     links.new(result, emit.inputs["Color"])
     return mat
@@ -137,8 +217,9 @@ def build_outline(name, look):
     material. Backface culling hides the shell's front faces, so only the rim
     of the shell sticking out past the silhouette is visible = the ink line.
     """
-    o = look.get("outline")
-    if not o:
+    from toon_bridge import lookdefs
+    o = lookdefs.normalize(look)["outline"]
+    if not o.get("enabled"):
         return None
     mname = name + "__outline"
     mat = bpy.data.materials.get(mname) or bpy.data.materials.new(mname)
@@ -305,151 +386,6 @@ def _math(nodes, links, op, a, b=None, loc=(0, 0)):
         else:
             links.new(v, n.inputs[i])
     return n.outputs[0]
-
-
-def build_pop_look(name, look):
-    """Comic-book pop art: flat colour, halftone dots and hatching in the shadows.
-
-    Everything is in SCREEN space (Texture Coordinate > Window), like a printed
-    page: the dots stay the same size on screen while the object moves.
-
-      light L   = Shader to RGB of a white diffuse (0 = dark, 1 = lit)
-      dots      = 45-degree grid; dot radius grows as L gets darker
-      hatching  = diagonal lines where L is below `hatch_below`
-      colour    = base (posterized lit/shadow) -> ink dots -> ink hatching
-    The node 'TB_Aspect' is set by render.py to width/height so dots are round.
-    """
-    mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
-    mat.use_nodes = True
-    mat.use_fake_user = True
-    nodes, links = mat.node_tree.nodes, mat.node_tree.links
-    nodes.clear()
-    out = nodes.new("ShaderNodeOutputMaterial")
-    out.location = (1800, 0)
-    emit = nodes.new("ShaderNodeEmission")
-    emit.location = (1600, 0)
-    links.new(emit.outputs[0], out.inputs["Surface"])
-
-    # light value
-    diff = nodes.new("ShaderNodeBsdfDiffuse")
-    diff.location = (-1200, 400)
-    s2 = nodes.new("ShaderNodeShaderToRGB")
-    s2.location = (-1000, 400)
-    links.new(diff.outputs[0], s2.inputs[0])
-    bw = nodes.new("ShaderNodeRGBToBW")
-    bw.location = (-800, 400)
-    links.new(s2.outputs["Color"], bw.inputs[0])
-    L = bw.outputs[0]
-
-    # screen coordinates, aspect-corrected, rotated 45 degrees
-    tc = nodes.new("ShaderNodeTexCoord")
-    tc.location = (-1400, -200)
-    sep = nodes.new("ShaderNodeSeparateXYZ")
-    sep.location = (-1200, -200)
-    links.new(tc.outputs["Window"], sep.inputs[0])
-    aspect = nodes.new("ShaderNodeValue")
-    aspect.name = aspect.label = "TB_Aspect"
-    aspect.outputs[0].default_value = 16.0 / 9.0
-    aspect.location = (-1400, -450)
-    x = _math(nodes, links, "MULTIPLY", sep.outputs["X"], aspect.outputs[0], (-1000, -200))
-    y = sep.outputs["Y"]
-    freq = look.get("dots_per_screen", 70.0)
-    u = _math(nodes, links, "MULTIPLY", _math(nodes, links, "ADD", x, y, (-800, -150)), 0.7071 * freq, (-600, -150))
-    v = _math(nodes, links, "MULTIPLY", _math(nodes, links, "SUBTRACT", y, x, (-800, -350)), 0.7071 * freq, (-600, -350))
-    fu = _math(nodes, links, "SUBTRACT", _math(nodes, links, "FRACT", u, None, (-400, -150)), 0.5, (-200, -150))
-    fv = _math(nodes, links, "SUBTRACT", _math(nodes, links, "FRACT", v, None, (-400, -350)), 0.5, (-200, -350))
-    dist = _math(nodes, links, "SQRT", _math(nodes, links, "ADD",
-                 _math(nodes, links, "MULTIPLY", fu, fu, (0, -150)),
-                 _math(nodes, links, "MULTIPLY", fv, fv, (0, -350)), (200, -250)), None, (400, -250))
-
-    # dot radius: 0 where lit (L >= dots_below), up to 0.72 (dots merge) where dark
-    lo = look.get("dots_below", 0.75)
-    t = _math(nodes, links, "DIVIDE", _math(nodes, links, "SUBTRACT", lo, L, (-600, 150)), lo, (-400, 150))
-    t = _math(nodes, links, "MAXIMUM", t, 0.0, (-200, 150))
-    radius = _math(nodes, links, "MULTIPLY", t, look.get("max_dot", 0.62), (0, 150))
-    dots = _math(nodes, links, "LESS_THAN", dist, radius, (600, 0))
-
-    # diagonal hatching in the deepest shadow
-    hatch_f = look.get("hatch_per_screen", 110.0)
-    hu = _math(nodes, links, "MULTIPLY", _math(nodes, links, "SUBTRACT", x, y, (-800, -600)), 0.7071 * hatch_f, (-600, -600))
-    stripe = _math(nodes, links, "LESS_THAN", _math(nodes, links, "FRACT", hu, None, (-400, -600)),
-                   look.get("hatch_width", 0.28), (-200, -600))
-    deep = _math(nodes, links, "LESS_THAN", L, look.get("hatch_below", 0.18), (0, -600))
-    hatch = _math(nodes, links, "MULTIPLY", stripe, deep, (600, -400))
-
-    # base colour, posterized into lit / shadow
-    if look.get("base_color", "maya") == "maya":
-        base = nodes.new("ShaderNodeAttribute")
-        base.attribute_type = "OBJECT"
-        base.attribute_name = COLOR_ATTR
-        base_sock = base.outputs["Color"]
-    else:
-        base = nodes.new("ShaderNodeRGB")
-        base.outputs[0].default_value = (*look["base_color"], 1)
-        base_sock = base.outputs[0]
-    base.location = (200, 500)
-    shade = nodes.new("ShaderNodeValToRGB")
-    shade.location = (200, 300)
-    shade.color_ramp.interpolation = "CONSTANT"
-    shade.color_ramp.elements[0].position = 0.0
-    shade.color_ramp.elements[0].color = (*look.get("shadow_mult", [0.78, 0.74, 0.92]), 1)
-    shade.color_ramp.elements[1].position = look.get("lit_above", 0.45)
-    shade.color_ramp.elements[1].color = (1, 1, 1, 1)
-    links.new(L, shade.inputs["Fac"])
-    col = nodes.new("ShaderNodeVectorMath")
-    col.operation = "MULTIPLY"
-    col.location = (600, 400)
-    links.new(base_sock, col.inputs[0])
-    links.new(shade.outputs["Color"], col.inputs[1])
-    # saturate: push away from grey for the printed-ink punch
-    sat = nodes.new("ShaderNodeHueSaturation")
-    sat.location = (800, 400)
-    sat.inputs["Saturation"].default_value = look.get("saturation", 1.35)
-    links.new(col.outputs[0], sat.inputs["Color"])
-
-    ink_dot = look.get("dot_color")          # None = darker version of the base
-    if ink_dot:
-        dot_col = nodes.new("ShaderNodeRGB")
-        dot_col.outputs[0].default_value = (*ink_dot, 1)
-        dot_sock = dot_col.outputs[0]
-        dot_col.location = (800, 150)
-    else:
-        dm = nodes.new("ShaderNodeVectorMath")
-        dm.operation = "SCALE"
-        dm.location = (800, 150)
-        links.new(sat.outputs[0], dm.inputs[0])
-        dm.inputs["Scale"].default_value = 0.35
-        dot_sock = dm.outputs[0]
-    mix_d = nodes.new("ShaderNodeMix")
-    mix_d.data_type = "RGBA"
-    mix_d.location = (1100, 300)
-    links.new(dots, mix_d.inputs["Factor"])
-    links.new(sat.outputs[0], mix_d.inputs[6])
-    links.new(dot_sock, mix_d.inputs[7])
-    hatch_col = look.get("hatch_color", [0.06, 0.04, 0.12])
-    mix_h = nodes.new("ShaderNodeMix")
-    mix_h.data_type = "RGBA"
-    mix_h.location = (1350, 300)
-    links.new(hatch, mix_h.inputs["Factor"])
-    links.new(mix_d.outputs[2], mix_h.inputs[6])
-    mix_h.inputs[7].default_value = (*hatch_col, 1)
-    result = mix_h.outputs[2]
-    # coloured rim light (cyan/magenta edge glow), a staple of the comic look
-    rim = look.get("rim")
-    if rim:
-        lw = nodes.new("ShaderNodeLayerWeight")
-        lw.location = (1100, -300)
-        lw.inputs["Blend"].default_value = 0.45
-        edge = _math(nodes, links, "GREATER_THAN", lw.outputs["Facing"], rim.get("threshold", 0.62), (1300, -300))
-        mix_r = nodes.new("ShaderNodeMix")
-        mix_r.data_type = "RGBA"
-        mix_r.location = (1500, 200)
-        links.new(edge, mix_r.inputs["Factor"])
-        links.new(result, mix_r.inputs[6])
-        mix_r.inputs[7].default_value = (*rim.get("color", [0.2, 0.9, 1.0]), 1)
-        result = mix_r.outputs[2]
-    links.new(result, emit.inputs["Color"])
-    return mat
 
 
 def set_aspect(aspect):
