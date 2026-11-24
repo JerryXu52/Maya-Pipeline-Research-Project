@@ -56,9 +56,16 @@ def _sockets(socks):
 
 
 def dump_node(n):
+    loc = getattr(n, "location_absolute", n.location)
     d = {"name": n.name, "type": n.bl_idname, "label": n.label, "title": n.bl_label,
-         "location": [round(n.location.x, 1), round(n.location.y, 1)], "width": round(n.width, 1),
+         "location": [round(loc[0], 1), round(loc[1], 1)], "width": round(n.width, 1),
          "mute": bool(n.mute), "props": {}}
+    if n.parent is not None:
+        d["parent"] = n.parent.name
+    if n.bl_idname == "NodeFrame":
+        d["height"] = round(n.height, 1)
+    if n.bl_idname == "ShaderNodeGroup":
+        d["group"] = group_name(n.node_tree) if n.node_tree else ""
     for p in n.bl_rna.properties:
         pid = p.identifier
         if pid in _base_props() or pid in SKIP_PROPS or p.is_readonly or pid.startswith("bl_"):
@@ -80,11 +87,53 @@ def dump_node(n):
     return d
 
 
-def dump_tree(tree):
-    nodes = [dump_node(n) for n in tree.nodes]
+IFACE_TYPES = {"VALUE": "NodeSocketFloat", "RGBA": "NodeSocketColor", "VECTOR": "NodeSocketVector",
+               "SHADER": "NodeSocketShader", "INT": "NodeSocketInt", "BOOLEAN": "NodeSocketBool"}
+
+
+def group_name(tree):
+    """A group's name as the look knows it (Blender's datablock name is made unique per look)."""
+    return tree.get("tb_name", tree.name)
+
+
+def _dump_level(tree, groups):
+    nodes = []
+    for n in tree.nodes:
+        nodes.append(dump_node(n))
+        if n.bl_idname == "ShaderNodeGroup" and n.node_tree is not None:
+            gname = group_name(n.node_tree)
+            if gname not in groups:
+                groups[gname] = None          # placeholder: stops loops on recursive groups
+                groups[gname] = dump_group(n.node_tree, groups)
     links = [[l.from_node.name, l.from_socket.identifier, l.to_node.name, l.to_socket.identifier]
              for l in tree.links if l.is_valid]
-    return {"nodes": nodes, "links": links}
+    return nodes, links
+
+
+def dump_group(gtree, groups):
+    iface = []
+    items = [it for it in gtree.interface.items_tree if it.item_type == "SOCKET"]
+    items.sort(key=lambda it: it.in_out != "INPUT")          # inputs first, then outputs
+    for it in items:
+        e = {"id": it.identifier, "name": it.name, "in_out": it.in_out, "type": it.socket_type}
+        if hasattr(it, "default_value"):
+            dv = it.default_value
+            try:
+                e["value"] = [round(float(x), 6) for x in dv]
+            except TypeError:
+                e["value"] = round(float(dv), 6) if isinstance(dv, float) else dv
+        iface.append(e)
+    nodes, links = _dump_level(gtree, groups)
+    return {"interface": iface, "nodes": nodes, "links": links}
+
+
+def dump_tree(tree):
+    groups = {}
+    nodes, links = _dump_level(tree, groups)
+    out = {"nodes": nodes, "links": links}
+    if groups:
+        out["groups"] = groups
+    return out
 
 
 def _find(socks, ident):
@@ -94,10 +143,52 @@ def _find(socks, ident):
     return None
 
 
-def build_tree(tree, graph):
-    """Rebuild `tree` from a dumped/edited graph. Unknown node types are skipped and reported."""
+def _build_groups(groups, prefix, problems):
+    """Pass 1: every group datablock and its interface. Returns (trees, id maps)."""
+    trees, idmaps = {}, {}
+    for gname, gd in (groups or {}).items():
+        if not gd:
+            continue
+        real = "%s%s" % (prefix, gname)
+        g = bpy.data.node_groups.get(real) or bpy.data.node_groups.new(real, "ShaderNodeTree")
+        g["tb_name"] = gname
+        g.interface.clear()
+        idmap = {}
+        for e in gd.get("interface", []):
+            stype = e.get("type", "NodeSocketFloat")
+            if not stype.startswith("NodeSocket"):
+                stype = IFACE_TYPES.get(stype, "NodeSocketFloat")
+            try:
+                it = g.interface.new_socket(name=e.get("name", "Value"), in_out=e.get("in_out", "INPUT"),
+                                            socket_type=stype)
+            except (TypeError, RuntimeError) as exc:
+                problems.append("group %s socket %s: %s" % (gname, e.get("name"), exc))
+                continue
+            if "value" in e and hasattr(it, "default_value"):
+                try:
+                    it.default_value = e["value"] if not isinstance(e["value"], list) else \
+                        (list(e["value"]) + list(it.default_value)[len(e["value"]):])[:len(it.default_value)]
+                except (TypeError, ValueError):
+                    pass
+            idmap[e["id"]] = it.identifier
+        trees[gname], idmaps[gname] = g, idmap
+    return trees, idmaps
+
+
+def _build_level(tree, graph, trees, idmaps, here, problems):
+    """Nodes, settings, values, parents and links of one level (the material or a group)."""
     tree.nodes.clear()
-    made, problems = {}, []
+    made = {}
+
+    def sid(nd, ident):
+        t = nd["type"]
+        if t == "ShaderNodeGroup":
+            return idmaps.get(nd.get("group"), {}).get(ident, ident)
+        if t in ("NodeGroupInput", "NodeGroupOutput") and here is not None:
+            return idmaps.get(here, {}).get(ident, ident)
+        return ident
+
+    by_name = {nd["name"]: nd for nd in graph.get("nodes", [])}
     for nd in graph.get("nodes", []):
         try:
             n = tree.nodes.new(nd["type"])
@@ -110,7 +201,14 @@ def build_tree(tree, graph):
         n.location = nd.get("location", [0, 0])
         if nd.get("width"):
             n.width = nd["width"]
+        if nd.get("height") and nd["type"] == "NodeFrame":
+            n.height = nd["height"]
         n.mute = bool(nd.get("mute", False))
+        if nd["type"] == "ShaderNodeGroup":
+            if nd.get("group") in trees:
+                n.node_tree = trees[nd["group"]]
+            else:
+                problems.append("group %s not found" % nd.get("group"))
         props = nd.get("props", {})
         # enums first: data_type / operation decide which sockets exist
         for pid in sorted(props, key=lambda k: props[k].get("type") != "ENUM"):
@@ -135,8 +233,8 @@ def build_tree(tree, graph):
             except RuntimeError:
                 problems.append("image not found: %s" % nd["image"])
         # inputs, and outputs too: Value and RGB nodes keep their number / colour on the output
-        for sd, s in ([(sd, _find(n.inputs, sd["id"])) for sd in nd.get("inputs", [])] +
-                      [(sd, _find(n.outputs, sd["id"])) for sd in nd.get("outputs", [])]):
+        for sd, s in ([(sd, _find(n.inputs, sid(nd, sd["id"]))) for sd in nd.get("inputs", [])] +
+                      [(sd, _find(n.outputs, sid(nd, sd["id"]))) for sd in nd.get("outputs", [])]):
             if s is None or "value" not in sd or not hasattr(s, "default_value"):
                 continue
             try:
@@ -147,14 +245,38 @@ def build_tree(tree, graph):
                 s.default_value = v
             except (TypeError, ValueError, AttributeError) as exc:
                 problems.append("%s.%s: %s" % (nd["name"], sd["id"], exc))
+    # frames: parent after every node exists, then put each node back where it was drawn
+    for nd in graph.get("nodes", []):
+        n = made.get(nd["name"])
+        if n is None:
+            continue
+        if nd.get("parent") in made:
+            n.parent = made[nd["parent"]]
+        if hasattr(n, "location_absolute"):
+            n.location_absolute = nd.get("location", [0, 0])
     for a, ao, b, bi in graph.get("links", []):
         na, nb = made.get(a), made.get(b)
-        so = _find(na.outputs, ao) if na else None
-        si = _find(nb.inputs, bi) if nb else None
+        so = _find(na.outputs, sid(by_name[a], ao)) if na else None
+        si = _find(nb.inputs, sid(by_name[b], bi)) if nb else None
         if so is None or si is None:
             problems.append("link %s.%s -> %s.%s skipped" % (a, ao, b, bi))
             continue
         tree.links.new(so, si)
+
+
+def build_tree(tree, graph, prefix=None):
+    """Rebuild `tree` (and its node groups) from a dumped/edited graph.
+
+    Groups are created first (pass 1: datablock + interface), then their insides, then
+    the main tree. Blender names group sockets itself, so ids from Maya are mapped.
+    """
+    problems = []
+    prefix = prefix if prefix is not None else "%s::" % (tree.id_data.name if tree.id_data else "tb")
+    trees, idmaps = _build_groups(graph.get("groups"), prefix, problems)
+    for gname, gd in (graph.get("groups") or {}).items():
+        if gd and gname in trees:
+            _build_level(trees[gname], gd, trees, idmaps, gname, problems)
+    _build_level(tree, graph, trees, idmaps, None, problems)
     return problems
 
 
