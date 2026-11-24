@@ -27,7 +27,7 @@ with open(os.path.join(HERE, "looks.json")) as f:
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 
-PREVIEW_COLORS = [(0.95, 0.45, 0.35), (1, 1, 1), (0.35, 0.6, 0.95), (0.75, 0.78, 0.85),
+PREVIEW_COLORS = [(0.95, 0.15, 0.25), (1, 1, 1), (0.98, 0.85, 0.25), (0.95, 0.45, 0.35), (1, 1, 1), (0.35, 0.6, 0.95), (0.75, 0.78, 0.85),
                   (0.45, 0.75, 0.4), (0.98, 0.8, 0.3), (1, 1, 1)]
 
 spacing = 2.6
@@ -62,12 +62,15 @@ sun = bpy.context.object
 sun.data.energy = math.pi
 tm.toon_light(sun.data)
 
-bpy.ops.object.camera_add(location=(0, -24, 4.2), rotation=(math.radians(84), 0, 0))
+# pull the camera back so every look fits across the frame
+dist = max(24.0, n * spacing * 40.0 / 36.0 + 3.0)
+bpy.ops.object.camera_add(location=(0, -dist, 4.2), rotation=(math.radians(85), 0, 0))
 cam = bpy.context.object
 cam.data.lens = 40
 scene.camera = cam
 
-tm.setup_render(scene, 1800, 620, samples=32)
+tm.setup_render(scene, 2400, 620, samples=32)
+tm.set_aspect(2400 / 620.0)
 tm.setup_world(scene, background=(0.93, 0.92, 0.88), ambient=(0.05, 0.05, 0.06))
 
 out_blend = os.path.join(HERE, "look_library.blend")

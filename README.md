@@ -16,8 +16,8 @@ Maya render vs Toon Bridge side by side, 3D hull vs 2D ink lines, look library, 
 
 ![Demo shot rendered through the bridge](docs/images/demo_frames.png)
 
-*Four frames of the demo shot. Modelled, rigged, animated and lit in Maya;
-rendered by Blender EEVEE through Toon Bridge.*
+*Four frames of the demo shot in the pop-art comic look. Modelled, rigged,
+animated and lit in Maya; rendered by Blender EEVEE through Toon Bridge.*
 
 ---
 
