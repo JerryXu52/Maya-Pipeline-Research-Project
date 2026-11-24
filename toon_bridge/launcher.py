@@ -64,6 +64,35 @@ def build_command(shot_json, frame=None, preview=False, blender=None):
     return cmd
 
 
+VIDEO_SCRIPT = os.path.join(REPO, "blender", "encode_video.py")
+_versions = {}
+
+
+def video_command(frames_dir, out_path, fps=24, blender=None):
+    """Blender command that turns a PNG sequence into an MP4 (Blender ships FFmpeg)."""
+    blender = blender or find_blender()
+    if not blender:
+        raise RuntimeError("Blender not found.")
+    return [blender, "-b", "--factory-startup", "--python", VIDEO_SCRIPT, "--",
+            frames_dir, out_path, str(int(round(fps)))]
+
+
+def blender_version(path=None):
+    """'5.3.0' for the given (or found) Blender, cached; None if it can't run."""
+    path = path or find_blender()
+    if not path:
+        return None
+    if path not in _versions:
+        try:
+            out = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=20,
+                                 env=_clean_env()).stdout
+            first = out.strip().splitlines()[0] if out.strip() else ""
+            _versions[path] = first.replace("Blender", "").strip() or None
+        except (OSError, subprocess.SubprocessError):
+            _versions[path] = None
+    return _versions[path]
+
+
 def _clean_env():
     """Maya sets PYTHONHOME/PYTHONPATH for its own Python 3.11; Blender must not inherit them."""
     env = dict(os.environ)
