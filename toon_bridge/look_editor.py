@@ -451,18 +451,49 @@ class LookEditor(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         root.setContentsMargins(10, 10, 10, 10)
         root.setSpacing(10)
         root.addWidget(self._build_library(), 0)
+        from .graph_editor import GraphView, NodeInspector
         mid = QtWidgets.QVBoxLayout()
+        top = QtWidgets.QHBoxLayout()
         self.title_lbl = QtWidgets.QLabel("")
         self.title_lbl.setStyleSheet("font-size:16px; font-weight:800;")
-        hint = QtWidgets.QLabel("Click a node to edit it. The dot in a node's header switches it on or off.")
-        hint.setProperty("muted", True)
-        mid.addWidget(self.title_lbl)
-        mid.addWidget(hint)
+        top.addWidget(self.title_lbl, 1)
+        mode_w, self.view_group = segmented(["Simple controls", "Full node graph"])
+        for b in self.view_group.buttons():
+            b.setMinimumWidth(b.fontMetrics().horizontalAdvance(b.text()) + 30)
+        self.view_group.idToggled.connect(lambda i, on: on and self.set_full_mode(i == 1))
+        top.addWidget(mode_w)
+        mid.addLayout(top)
+        self.hint_lbl = QtWidgets.QLabel("")
+        self.hint_lbl.setProperty("muted", True)
+        self.hint_lbl.setWordWrap(True)
+        mid.addWidget(self.hint_lbl)
+        self.banner = QtWidgets.QFrame()
+        self.banner.setStyleSheet("QFrame{background:#3a2f22;border-radius:6px;}")
+        bl = QtWidgets.QHBoxLayout(self.banner)
+        bl.setContentsMargins(10, 6, 10, 6)
+        self.banner_lbl = QtWidgets.QLabel("")
+        self.banner_lbl.setWordWrap(True)
+        self.reset_btn = QtWidgets.QPushButton("Reset to simple controls")
+        self.reset_btn.clicked.connect(self.reset_to_simple)
+        bl.addWidget(self.banner_lbl, 1)
+        bl.addWidget(self.reset_btn)
+        mid.addWidget(self.banner)
+        self.stack = QtWidgets.QStackedWidget()
         self.graph = NodeGraph()
         self.graph.setMinimumSize(560, 340)
         self.graph.nodeClicked.connect(self.select_node)
         self.graph.nodeToggled.connect(self.toggle_node)
-        mid.addWidget(self.graph, 1)
+        self.full = GraphView()
+        self.full.changed.connect(self._full_changed)
+        self.full.nodeSelected.connect(lambda n: self.node_inspector.show_node(n))
+        self.stack.addWidget(self.graph)
+        self.stack.addWidget(self.full)
+        mid.addWidget(self.stack, 1)
+        self.node_inspector = NodeInspector(self.full)
+        self.node_inspector.edited.connect(self._full_changed)
+        self.full_mode = False
+        self._graph_version = 0
+        self.sync_job = None
         bottom = QtWidgets.QHBoxLayout()
         self.dirty_lbl = QtWidgets.QLabel("")
         self.dirty_lbl.setProperty("muted", True)
@@ -477,6 +508,7 @@ class LookEditor(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         mid.addLayout(bottom)
         root.addLayout(mid, 1)
         root.addWidget(self._build_right(), 0)
+        self.right_stack.addWidget(self.node_inspector)
 
         self.preview_timer = QtCore.QTimer(self)
         self.preview_timer.setSingleShot(True)
@@ -616,7 +648,110 @@ class LookEditor(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.src_chk.setChecked(self.look().get("source") == "blend")
         self.src_chk.blockSignals(False)
         self.select_node(self.selected)
+        self._update_banner()
+        if self.full_mode:
+            self._load_full_graph()
         self._changed()
+
+    # ------------------------------------------------------------ full node graph
+    def set_full_mode(self, full):
+        self.full_mode = bool(full)
+        self.stack.setCurrentIndex(1 if full else 0)
+        self.right_stack.setCurrentIndex(1 if full else 0)
+        self.hint_lbl.setText(
+            "The real EEVEE node tree. Drag from an output to an input to connect; right-click or Shift+A to add "
+            "a node; X deletes; wheel zooms; middle-drag or Alt+drag pans; F frames all; Ctrl+Z undoes."
+            if full else "Click a node to edit it. The dot in a node's header switches it on or off.")
+        if full:
+            self._load_full_graph()
+        self._update_banner()
+
+    def _update_banner(self):
+        has = bool(self.look().get("graph"))
+        if self.full_mode:
+            self.banner_lbl.setText("This look renders from this node graph." if has else
+                                    "Blender's graph for this look. Your first edit makes it this look's own graph.")
+        else:
+            self.banner_lbl.setText("This look renders from its own full node graph, so the simple controls "
+                                    "don't apply to it.")
+        self.banner.setVisible(has or self.full_mode)
+        self.reset_btn.setVisible(has)
+        self.graph.setEnabled(not (has and not self.full_mode))
+        self.inspector_host.setEnabled(not has)
+
+    def _load_full_graph(self):
+        g = self.look().get("graph")
+        if g:
+            self.full.undo_stack, self.full.redo_stack = [], []
+            self.full.set_graph(g, keep_selection=False)
+            self.node_inspector.show_node("")
+        else:
+            self.full.set_graph({"nodes": [], "links": []}, keep_selection=False)
+            self.sync(preview=False, adopt=True)       # ask Blender for the template's graph
+
+    def _full_changed(self, structural=True):
+        if not structural and not self.look().get("graph"):
+            return      # only moved nodes of Blender's template graph: the look itself is unchanged
+        self.look()["graph"] = self.full.graph
+        self._graph_version += 1
+        self._update_banner()
+        self._changed(preview=False)
+        if structural:
+            self.preview_timer.start(400)
+
+    def reset_to_simple(self):
+        if QtWidgets.QMessageBox.question(self, "Reset look", "Drop this look's own node graph and go back to "
+                                          "the simple controls?") != QtWidgets.QMessageBox.Yes:
+            return
+        self.look().pop("graph", None)
+        self._update_banner()
+        if self.full_mode:
+            self._load_full_graph()
+        self._changed()
+
+    def sync(self, preview=True, adopt=False):
+        """Blender rebuilds the graph and returns its exact version (+ a preview swatch)."""
+        if self.sync_job and self.sync_job.running():
+            self._preview_again = True
+            return None
+        self._preview_n += 1
+        tag = "%s_%d" % (self.name, self._preview_n)
+        req, resp = os.path.join(WORK, "sync_%s.json" % tag), os.path.join(WORK, "sync_%s_out.json" % tag)
+        out = os.path.join(WORK, "preview_%s.png" % tag) if preview else None
+        with open(req, "w") as f:
+            json.dump({"name": self.name, "look": self.look()}, f)
+        version, name = self._graph_version, self.name
+        self.sync_job = launcher.BlenderJob(launcher.sync_command(req, resp, out, 360, 236), self)
+        self.sync_job.finished.connect(lambda ok, s, r=resp, o=out, v=version, n=name, a=adopt:
+                                       self._sync_done(ok, s, r, o, v, n, a))
+        if preview:
+            self.preview_status.setText("Rendering…")
+        self.sync_job.start()
+        return self.sync_job
+
+    def _sync_done(self, ok, summary_text, resp, out, version, name, adopt):
+        if ok and os.path.isfile(resp) and name == self.name:
+            data = json.load(open(resp))
+            for p in data.get("problems", []):
+                self.status("Blender: %s" % p)
+            canonical = data["graph"]
+            if self.full_mode and version == self._graph_version and (adopt or self.look().get("graph")):
+                before = self._structure(self.full.graph)
+                if self.look().get("graph"):
+                    self.look()["graph"] = canonical
+                self.full.set_graph(canonical, keep_view=not adopt)
+                if self._structure(canonical) != before:
+                    self.node_inspector.show_node(self.node_inspector.name or "")
+        if out:
+            self._preview_done(ok, summary_text, out)
+        elif self._preview_again:
+            self._preview_again = False
+            self.render_preview()
+
+    @staticmethod
+    def _structure(graph):
+        return [(n["name"], [(s["id"], s.get("enabled")) for s in n.get("inputs", []) + n.get("outputs", [])],
+                 sorted(n.get("props", {}))) for n in graph.get("nodes", [])]
 
     # ------------------------------------------------------------ right side
     def _build_right(self):
@@ -642,18 +777,24 @@ class LookEditor(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.preview_status.setProperty("muted", True)
         lay.addWidget(self.preview_status)
 
+        self.right_stack = QtWidgets.QStackedWidget()
+        simple = QtWidgets.QWidget()
+        sl = QtWidgets.QVBoxLayout(simple)
+        sl.setContentsMargins(0, 0, 0, 0)
         self.node_title = QtWidgets.QLabel("")
         self.node_title.setObjectName("stepTitle")
-        lay.addWidget(self.node_title)
+        sl.addWidget(self.node_title)
         self.node_help = QtWidgets.QLabel("")
         self.node_help.setWordWrap(True)
         self.node_help.setProperty("muted", True)
-        lay.addWidget(self.node_help)
+        sl.addWidget(self.node_help)
         self.inspector_host = QtWidgets.QWidget()
         self.inspector = QtWidgets.QFormLayout(self.inspector_host)
         self.inspector.setLabelAlignment(QtCore.Qt.AlignRight)
-        lay.addWidget(self.inspector_host)
-        lay.addStretch(1)
+        sl.addWidget(self.inspector_host)
+        sl.addStretch(1)
+        self.right_stack.addWidget(simple)
+        lay.addWidget(self.right_stack, 1)
         self.src_chk = QtWidgets.QCheckBox("Use the version hand-edited in look_library.blend")
         self.src_chk.setToolTip("For node trees changed in Blender's own node editor. Then this editor's\n"
                                 "settings are kept but not used for rendering this look.")
@@ -859,7 +1000,7 @@ class LookEditor(MayaQWidgetDockableMixin, QtWidgets.QWidget):
     # ------------------------------------------------------------ preview
     def render_preview(self):
         """Render the look being edited in the background; a newer edit re-queues it."""
-        if self.preview_job and self.preview_job.running():
+        if (self.preview_job and self.preview_job.running()) or (self.sync_job and self.sync_job.running()):
             self._preview_again = True
             return None
         self._preview_again = False
@@ -870,10 +1011,7 @@ class LookEditor(MayaQWidgetDockableMixin, QtWidgets.QWidget):
             if self.mode_group.checkedId() == 1:
                 cmd = self._shot_frame_command(out)
             else:
-                spec = os.path.join(WORK, "look_%s.json" % tag)
-                with open(spec, "w") as f:
-                    json.dump({"name": self.name, "look": self.look()}, f)
-                cmd = launcher.preview_command(spec, out, 360, 236)
+                return self.sync(preview=True)
         except Exception as exc:
             self.preview_status.setText("Preview failed: %s" % exc)
             return None

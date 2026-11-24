@@ -68,7 +68,26 @@ Blender renders in the background as you edit, on a test swatch or **this frame 
 | **Outline** | on/off, width, colour (3D outline style) |
 
 Click the dot in an optional node's header to switch it off; the wire then bypasses it
-(dashed), like a muted node in Blender. **Save looks** writes `blender/looks.json`, and the
+(dashed), like a muted node in Blender.
+
+**Full node graph.** Switch the editor to **Full node graph** to see and edit the *real*
+EEVEE node tree Blender builds (Pop-Art Comic: 48 nodes, 58 links), every Math node included:
+
+![Full node graph](docs/images/node_graph.png)
+
+| Do | How |
+|---|---|
+| Edit any value, colour, vector, setting (operation, data type, blend mode…), ramp | click the node, use the inspector on the right |
+| Connect / reconnect / pull off a wire | drag from an output to an input; drag a linked input away |
+| Add a node (45 types, Blender's menu: Input, Shader, Texture, Color, Converter, Vector) | right-click the graph or **Shift+A** |
+| Delete / mute | **X** or Delete / right-click |
+| Navigate | wheel zoom, middle-drag or Alt+drag pan, **F** frame all |
+| Undo / redo | **Ctrl+Z** / **Ctrl+Shift+Z** |
+
+After each change Blender rebuilds the graph in the background (about a second) and sends back
+its exact version, so sockets appear and disappear as in Blender (switch a Mix node to *Float*
+and its colour inputs hide), and the preview updates in the same pass. A look you edit this way
+saves its full graph and renders from it; **Reset to simple controls** goes back to the template. **Save looks** writes `blender/looks.json`, and the
 next render uses it. Duplicate a look to make your own. For node trees you'd rather build
 in Blender's own node editor, edit `blender/look_library.blend` and tick
 *Use the version hand-edited in look_library.blend* for that look.
@@ -173,7 +192,9 @@ the shot; `toon_bridge.launcher.build_command(shot_json)` gives the Blender comm
 | `mayapy tests/camera_match.py 36`: Maya Software vs Blender, same frame | **99.20%** of pixels agree on object vs background; the rest are 1-px antialiased edges ([image](docs/images/camera_match_36.png)) |
 | `mayapy tests/run_end_to_end.py --all` | 72/72 frames, 1280×720, rendered in 35 s; PASS |
 | Pre-flight test with planted problems (duplicate name, unknown look, mirrored mesh) | all found; fixes resolved name/look errors |
-| `mayapy tests/look_editor_smoke.py`: drives the Look Editor | 16/16: graph nodes, switching nodes on/off, ramp edits, swatch and this-frame previews with unsaved looks, save, duplicate, revert |
+| `mayapy tests/look_editor_smoke.py`: drives the Look Editor | 30/30: simple graph, ramp edits, previews; full graph: Blender's real 48-node tree, value edits, add a Mix node, Blender hides/shows its sockets when switched to Float, connect, undo/redo, save, a shot renders from the edited graph |
+| `blender -b --python tests/graph_roundtrip_blender.py` | every library look: node tree → JSON → rebuilt → identical JSON |
+| `python3 -m unittest tests.test_graph_model` | node-graph editing rules: unique names, connect replaces, removing a node drops its links |
 | `python3 -m unittest tests.test_lookdefs` | every library look fits the template; old formats convert; save/load round-trips |
 | `mayapy tests/ui_smoke.py`: loads the plug-in and drives the real panel | 26/26: plug-in load/unload, style cards assign looks by name, per-object looks, Fix all, render a frame and a range through the background Blender job, viewer follows the timeline, image plane on the camera, Export MP4 |
 | `mayapy demo/make_video.py` | renders the shot 3 ways (Maya Software, hull, ink) and builds the demo video |
@@ -272,11 +293,13 @@ tested on my own skinned demo character.
 
 ```
 plug-ins/      toonBridge.py: the Maya plug-in (menu, toonBridge command)
-toon_bridge/   Maya package: ui.py (panel), look_editor.py (node-graph Look Editor), lookdefs.py
-               (the look template), menu.py, styles.py, looks.py, preflight.py,
+toon_bridge/   Maya package: ui.py (panel), look_editor.py (Look Editor), graph_editor.py (full node
+               editor), graph_model.py, node_catalog.json, lookdefs.py (the look template), menu.py,
+               styles.py, looks.py, preflight.py,
                exporter.py, launcher.py, convert.py, icons/
 blender/       render.py, toon_materials.py, build_library.py, looks.json, look_library.blend,
-               encode_video.py (MP4), style_thumbs.py (style-card images), preview_look.py (editor preview)
+               encode_video.py (MP4), style_thumbs.py (style-card images), preview_look.py,
+               node_graph.py (node tree <-> JSON), graph_sync.py, preview_scene.py, make_node_catalog.py
 demo/          make_demo_scene.py, toon_demo.ma, make_video.py,
                make_presentation_scene.py, presentation.ma, prerender_presentation.py, textures/
 tests/         test_convert.py, light_match_blender.py, camera_match.py, run_end_to_end.py, ui_smoke.py, stress_scenes.py
