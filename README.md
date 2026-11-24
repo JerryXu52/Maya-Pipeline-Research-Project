@@ -9,17 +9,47 @@ style** (inspired by the comic-book look of films like *Spider-Man: Into the
 Spider-Verse*): halftone dots, hatching, ink lines, off-register print colours
 and animation on twos. Plain cel looks are included too.
 
-**▶ Demo video: [docs/video/toon_bridge_demo.mp4](docs/video/toon_bridge_demo.mp4)** (42 s, rendered by the tool:
-Maya render vs Toon Bridge side by side, 3D hull vs 2D ink lines, look library, camera match)
+![Demo shot rendered through the bridge](docs/images/demo_pop.gif)
 
-**▶ Screen recording of the tool in Maya: SCREEN_RECORDING_LINK**
+*The demo shot: modelled, rigged, animated and lit in Maya; rendered by Blender
+EEVEE through Toon Bridge in the pop-art comic look.*
 
-![Demo shot rendered through the bridge](docs/images/demo_frames.png)
-
-*Four frames of the demo shot in the pop-art comic look. Modelled, rigged,
-animated and lit in Maya; rendered by Blender EEVEE through Toon Bridge.*
+| ▶ Videos | |
+|---|---|
+| [**Demo video**](docs/video/toon_bridge_demo.mp4) (43 s) | Maya render vs Toon Bridge side by side, print effects on/off, look library, camera match |
+| [**Stress-test video**](docs/video/stress_test.mp4) (35 s) | scanned humans, a robot rig and a town environment from Maya's example scenes, all through the bridge |
+| **Screen recording in Maya** | SCREEN_RECORDING_LINK |
 
 ---
+
+## How to use it
+
+<img src="docs/images/panel.png" align="right" width="330" alt="The Toon Bridge panel in Maya after a render">
+
+**Install once**
+1. Install **Blender 4.2+** (tested with 5.3). On a Mac it is found automatically in `/Applications`.
+2. Clone this repo, then **drag `drag_into_maya.py` into a Maya viewport.**
+   That adds the repo to Maya's Python path, puts a **Toon** button on your
+   shelf, and opens the panel. Next time, just click **Toon**.
+
+**Every shot: work down the panel, 1 → 5**
+
+| | Section | What you do |
+|---|---|---|
+| **1** | **Looks** | Select meshes in the viewport → click a look (e.g. *Pop-art comic*) → **Assign to Selected**. Tick *Viewport toon preview* to see rough bands in Maya. |
+| **2** | **Shot** | Pick your **camera** and **frames**. Choose *Line style* and *Print effects* (misregistration px, animate on twos). Tick **Only selected objects** to leave rig controls out. |
+| **3** | **Pre-flight** | **Check Scene**. Red = must fix, yellow = OK but read it. Double-click a row to select the problem objects; **Fix** repairs it (e.g. duplicate names). |
+| **4** | **Render** | **Render Current Frame** (one frame in ~2 s, opens in Render View) or **Render Shot**. Maya stays usable; Blender works in the background. |
+| **5** | **Result** | Frames appear as they finish. **Play** the flipbook, **Open Folder**, or **Open .blend in Blender** to tweak the scene there. |
+
+**Try it in one minute:** open `demo/toon_demo.ma` (looks already assigned),
+choose `shotCam`, press **Render Current Frame**.
+
+**Your own looks:** open `blender/look_library.blend` in Blender, edit a
+material's nodes and save. Every render from Maya uses your edits. New looks go
+in `blender/looks.json`.
+
+<br clear="right">
 
 ## What I set out to do
 
@@ -99,33 +129,16 @@ How every part works, and why: **[docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md)**.
  Frames in flipbook / Render View          ◄──   EEVEE → frames/toon.####.png + toon_shot.blend
 ```
 
-## How to run it
+## Command line and scripting
 
-**Needs:** Maya 2026 (Maya 2025 and other PySide6 versions should work too) and
-**Blender 4.2 or newer** (tested with 5.3.0). On macOS Blender is found
-automatically in `/Applications`; otherwise set its path in the panel.
-
-1. Clone: `git clone https://github.com/JerryXu52/Maya-Pipeline-Research-Project.git`
-2. **Install**: drag `drag_into_maya.py` into a Maya viewport. It adds the repo
-   to Maya's Python path (now and at startup, via `userSetup.py`), puts a
-   **Toon** button on the current shelf, and opens the panel.
-   *Or* in the Script Editor (Python):
-   ```python
-   import sys; sys.path.append("/path/to/Maya-Pipeline-Research-Project")
-   import toon_bridge.ui as tb; tb.show()
-   ```
-3. **Try the demo**: open `demo/toon_demo.ma` (looks are already assigned), choose
-   camera `shotCam`, press **Render Current Frame**, then **Render Shot**.
-4. **Your own scene**: select meshes → pick a look → **Assign to Selected**.
-   Add a directional light (pre-flight offers to), pick your camera, and render.
-   Frames go to `<scene folder>/toon_bridge/<scene name>/frames/`.
-
-**Command line** (no Maya UI):
 ```bash
-mayapy tests/run_end_to_end.py --all          # demo: build, check, export, render all frames, verify
+mayapy tests/run_end_to_end.py --all --pop     # demo: build, check, export, render all frames, verify
+mayapy tests/stress_scenes.py                  # Maya example scenes through the bridge (+ GIFs, video)
 blender -b --factory-startup --python blender/render.py -- path/to/shot.json [--frame 12] [--preview]
 blender -b --python blender/build_library.py -- --sheet docs/images/look_sheet.png   # rebuild looks
 ```
+From Python in Maya: `toon_bridge.exporter.export_shot(camera, start, end, folder)` writes
+the shot; `toon_bridge.launcher.build_command(shot_json)` gives the Blender command.
 
 ## How I verified it
 
@@ -136,28 +149,31 @@ blender -b --python blender/build_library.py -- --sheet docs/images/look_sheet.p
 | `mayapy tests/camera_match.py 36`: Maya Software vs Blender, same frame | **99.20%** of pixels agree on object vs background; the rest are 1-px antialiased edges ([image](docs/images/camera_match_36.png)) |
 | `mayapy tests/run_end_to_end.py --all` | 72/72 frames, 1280×720, rendered in 35 s; PASS |
 | Pre-flight test with planted problems (duplicate name, unknown look, mirrored mesh) | all found; fixes resolved name/look errors |
-| `mayapy tests/ui_smoke.py`: the real panel, buttons pressed from code | 13/13: looks listed, assign, select, preview on/off, pre-flight, Render Current Frame through the background Blender job, frame shown in the viewer |
+| `mayapy tests/ui_smoke.py`: the real panel, buttons pressed from code | 13/13, 5 runs in a row (after fixing an intermittent crash, see below): looks listed, assign, select, preview on/off, pre-flight, Render Current Frame through the background Blender job, frame shown in the viewer |
 | `mayapy demo/make_video.py` | renders the shot 3 ways (Maya Software, hull, ink) and builds the demo video |
 
 ![Camera match](docs/images/camera_match_36.png)
 
-### Stress test on hard, real scenes (`mayapy tests/stress_scenes.py`)
+### Stress test: real characters and an environment (`mayapy tests/stress_scenes.py`)
 
 The demo is my own simple scene, so I also ran the example scenes that ship
-with Maya 2026 through the whole tool: open → pre-flight + fixes → test camera
-move → export 12 frames → render in the pop-art look.
+with Maya 2026 through the whole tool: open → pre-flight + fixes → orbiting
+test camera → export 48 frames → render in the pop-art look.
+**▶ [Stress-test video](docs/video/stress_test.mp4)**
 
-| Scene | What makes it hard | Result |
+| Character: rigged scanned human | Character: robot rig |
+|---|---|
+| ![](docs/images/stress_eric.gif) | ![](docs/images/stress_robot.gif) |
+| **Character: 100k-polygon scan** | **Environment: town** |
+| ![](docs/images/stress_sophia.gif) | ![](docs/images/stress_room.gif) |
+
+| Scene | What makes it hard | Result (48 frames) |
 |---|---|---|
-| `rp_eric_rigged_HIK_arnold` | scanned human, HumanIK rig (142 joints, skinned), Arnold shader without Arnold installed, colour map behind a composite node | OK, 4.8 s. Texture found by searching upstream of the unknown shader |
-| `M4Y4-B07` robot rig | 23 meshes, 10 skin clusters, blendshape/expression control meshes, standardSurface + textures | OK, 4.1 s. Pre-flight fixed **10 duplicate names**; control shapes left out with "Only selected objects" |
-| `rp_sophia_posed_100k_arnold` | 100,002-polygon scan, textured | OK, 8.5 s |
-| `Interactive_LightingAndShading` (town) | environment: 63 meshes, 39,803 polys, `houses:` namespace, 30 textured, 4 non-directional lights | OK, 10.7 s. Pre-flight fixed **40 duplicate names** created by stripping the namespace |
+| `rp_eric_rigged_HIK_arnold` | scanned human, HumanIK rig (142 joints, skinned), Arnold shader without Arnold installed, colour map behind a composite node | OK, 7.5 s. Texture found by searching upstream of the unknown shader |
+| `M4Y4-B07` robot rig | 23 meshes, 10 skin clusters, expression control meshes, standardSurface + textures | OK, 7.1 s. Pre-flight fixed **10 duplicate names**; control shapes left out |
+| `rp_sophia_posed_100k_arnold` | 100,002-polygon scan, textured | OK, 14.6 s |
+| `Interactive_LightingAndShading` (town) | environment: 63 meshes, 39,803 polys, `houses:` namespace, 30 textured, 4 non-directional lights | OK, 20.6 s. Pre-flight fixed **40 duplicate names** created by stripping the namespace |
 | `TutorialBuildingDemo` | tutorial scene with UI scripts that run on open | OK after opening with script nodes off (the scripts crashed headless Maya, not the bridge) |
-
-![Scanned human](docs/images/stress_eric.png)
-![Robot rig](docs/images/stress_robot.png)
-![Town environment](docs/images/stress_room.png)
 
 **What the stress test changed in the tool:** texture support (colour maps are sent
 and posterized under the halftone), finding colour maps behind unknown/Arnold
@@ -170,6 +186,9 @@ tested on my own skinned demo character.
 
 ## What I learned
 
+* **Bisecting a crash.** The panel crashed headless Maya in about half the runs.
+  Turning suspects off one at a time showed it was a `processEvents()` call
+  during export (pumping Qt events while Maya was mid-command). Removed: 5/5 passes.
 * **3D-to-2D needs screen-space lines.** World-space outlines (inverted hull)
   get thinner with distance, so the image still reads as 3D. Freestyle strokes
   have a constant pixel width and also draw inner creases, which reads as drawn.

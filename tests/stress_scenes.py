@@ -5,7 +5,7 @@
 For each scene: open it, report what is in it (meshes, polys, skinning,
 shader types, textures, lights), run pre-flight and its fixes, add a test
 camera move (and a joint rotation on rigged characters so the skin deforms),
-export 12 frames, render frames 1 and 12 in the pop-art look, and save a
+export 48 frames, render them all in the pop-art look, and save a
 contact sheet to docs/images/stress_<name>.png. Results go to stdout as
 STRESS lines and to renders/stress/report.json.
 """
@@ -37,7 +37,7 @@ SCENES = {
     "room": EX + "/Tutorials/LS/Interactive_LightingAndShading.ma",
 }
 OUT = os.path.join(REPO, "renders", "stress")
-START, END = 1, 12
+START, END = 1, 48
 
 
 def say(*a):
@@ -105,8 +105,8 @@ def add_camera(meshes):
     else:                        # a character: full body in frame
         cmds.move(0, size * 0.15, size * 2.3, cam, objectSpace=True, relative=True)
     cmds.aimConstraint(pivot, cam, aimVector=(0, 0, -1), upVector=(0, 1, 0), worldUpType="scene")
-    cmds.setKeyframe(pivot, attribute="rotateY", time=START, value=-25)
-    cmds.setKeyframe(pivot, attribute="rotateY", time=END, value=-5)
+    cmds.setKeyframe(pivot, attribute="rotateY", time=START, value=-40)
+    cmds.setKeyframe(pivot, attribute="rotateY", time=END, value=30)
     return cam
 
 
@@ -197,15 +197,99 @@ def run(name, path):
         rec["result"] = "Blender failed"
         rec["log_tail"] = lines[-25:]
         return rec
-    frames = [os.path.join(shot_dir, "frames", "toon.%04d.png" % f) for f in (START, (START + END) // 2, END)]
+    frames = [os.path.join(shot_dir, "frames", "toon.%04d.png" % f) for f in (START, (START + END) // 2, END - 1)]
     rec["sheet"] = sheet(frames, name, "%s  (%d meshes, %d polys, %d skinClusters, %d textured)" % (
         rec["scene"], rec["meshes"], rec["polys"], rec["skinClusters"], rec["textured_meshes"]))
     rec["result"] = "OK"
     return rec
 
 
+def make_media(report):
+    """Animated GIF per scene (plays inline in the GitHub README) + one MP4 with title cards."""
+    import shutil
+    import subprocess
+    ff = shutil.which("ffmpeg") or "/opt/homebrew/bin/ffmpeg"
+    img_dir = os.path.join(REPO, "docs", "images")
+    vid_dir = os.path.join(REPO, "docs", "video")
+    os.makedirs(vid_dir, exist_ok=True)
+    comp = os.path.join(OUT, "video_frames")
+    shutil.rmtree(comp, ignore_errors=True)
+    os.makedirs(comp)
+    n = [0]
+    W, H = 1280, 720
+
+    def emit(img, times=1):
+        for _ in range(times):
+            n[0] += 1
+            img.save(os.path.join(comp, "v.%05d.png" % n[0]))
+
+    def card(title, lines):
+        img = QtGui.QImage(W, H, QtGui.QImage.Format_RGB32)
+        img.fill(QtGui.QColor(24, 23, 28))
+        p = QtGui.QPainter(img)
+        p.setRenderHint(QtGui.QPainter.Antialiasing)
+        p.setPen(QtGui.QColor(245, 242, 236))
+        f = QtGui.QFont("Helvetica Neue", 40)
+        f.setBold(True)
+        p.setFont(f)
+        p.drawText(QtCore.QRectF(0, 200, W, 80), QtCore.Qt.AlignCenter, title)
+        p.setFont(QtGui.QFont("Helvetica Neue", 20))
+        for i, l in enumerate(lines):
+            p.setPen(QtGui.QColor(255, 176, 92) if i == 0 else QtGui.QColor(230, 228, 222))
+            p.drawText(QtCore.QRectF(0, 310 + i * 44, W, 40), QtCore.Qt.AlignCenter, l)
+        p.end()
+        return img
+
+    def framed(path, caption):
+        img = QtGui.QImage(path).scaled(W, H, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+        img = img.convertToFormat(QtGui.QImage.Format_RGB32)
+        p = QtGui.QPainter(img)
+        p.fillRect(0, H - 40, W, 40, QtGui.QColor(0, 0, 0, 170))
+        p.setPen(QtGui.QColor(245, 242, 236))
+        p.setFont(QtGui.QFont("Helvetica Neue", 16))
+        p.drawText(QtCore.QRectF(14, H - 40, W - 28, 40), QtCore.Qt.AlignVCenter, caption)
+        p.end()
+        return img
+
+    emit(card("Toon Bridge: stress test", [
+        "Example scenes that ship with Maya 2026, sent through the whole tool",
+        "open → pre-flight + fixes → export Alembic + shot.json → Blender EEVEE pop-art look",
+        "Rendered in the background; nothing was edited by hand"]), 24 * 4)
+    titles = {"eric": "Character: rigged scanned human", "robot": "Character: robot rig",
+              "sophia": "Character: 100k-polygon scan", "room": "Environment: town",
+              "building": "Character: tutorial robot"}
+    for name, rec in report.items():
+        if rec.get("result") != "OK":
+            continue
+        fdir = os.path.join(OUT, name, "frames")
+        frames = sorted(os.path.join(fdir, f) for f in os.listdir(fdir) if f.endswith(".png"))
+        stats = "%d meshes · %s polys · %d skin clusters · %d textured · render %.1fs" % (
+            rec["meshes"], "{:,}".format(rec["polys"]), rec["skinClusters"], rec["textured_meshes"], rec["render_s"])
+        fixed = [l.split(":")[0] for l in rec.get("preflight_before", []) if "error" in l]
+        emit(card(titles.get(name, name), [rec["scene"], stats,
+                                         ("Pre-flight fixed: " + ", ".join(fixed)) if fixed else "Pre-flight: no blocking issues"]),
+             24 * 3)
+        for _ in range(2):
+            for fp in frames:
+                emit(framed(fp, "%s  ·  %s" % (titles.get(name, name), stats)))
+        # GIF for the README: 640 px, 12 fps, palette for good colour
+        gif = os.path.join(img_dir, "stress_%s.gif" % name)
+        pattern = os.path.join(fdir, "toon.%04d.png")
+        vf = "fps=12,scale=640:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128[p];[b][p]paletteuse=dither=bayer:bayer_scale=4"
+        subprocess.check_call([ff, "-loglevel", "error", "-y", "-framerate", "24", "-start_number", str(START),
+                               "-i", pattern, "-vf", vf, "-loop", "0", gif])
+        rec["gif"] = gif
+        say(name, "GIF", gif, "%.1f MB" % (os.path.getsize(gif) / 1e6))
+    emit(card("Stress test: all scenes rendered", [
+        "Next: tame photo textures in the pop look · drive HumanIK rigs for deformation tests"]), 24 * 3)
+    mp4 = os.path.join(vid_dir, "stress_test.mp4")
+    subprocess.check_call([ff, "-loglevel", "error", "-y", "-framerate", "24", "-i", os.path.join(comp, "v.%05d.png"),
+                           "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "22", "-movflags", "+faststart", mp4])
+    say("VIDEO", mp4, "%.1f s" % (n[0] / 24.0))
+
+
 def main():
-    names = sys.argv[1:] or list(SCENES)
+    names = [a for a in sys.argv[1:] if not a.startswith("--")] or list(SCENES)
     os.makedirs(OUT, exist_ok=True)
     report = {}
     for n in names:
@@ -217,6 +301,8 @@ def main():
             report[n] = {"result": "EXCEPTION %s" % exc}
         say(n, "RESULT", report[n].get("result"), "export %ss render %ss" % (
             report[n].get("export_s"), report[n].get("render_s")))
+    if "--media" in sys.argv or not sys.argv[1:]:
+        make_media(report)
     with open(os.path.join(OUT, "report.json"), "w") as f:
         json.dump(report, f, indent=1)
 
