@@ -27,6 +27,12 @@ def open_panel():
     return ui.show()
 
 
+def open_look_editor(look=None):
+    from . import look_editor
+    open_panel()
+    return look_editor.show(look)
+
+
 def render(current_only):
     p = open_panel()
     return p.render(current_only=current_only)
@@ -68,6 +74,8 @@ def build():
     cmds.menu(MENU, label="Toon Bridge", parent=main, tearOff=True)
     cmds.menuItem(label="Open Toon Bridge", annotation="The three-step panel: style, check, render",
                   command=lambda *_: open_panel(), image="render.png")
+    cmds.menuItem(label="Look Editor…", annotation="Edit each look's EEVEE node graph with a live preview",
+                  command=lambda *_: open_look_editor())
     cmds.menuItem(divider=True)
     cmds.menuItem(label="Render This Frame", command=lambda *_: render(True))
     cmds.menuItem(label="Render Shot", command=lambda *_: render(False))

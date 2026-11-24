@@ -77,6 +77,18 @@ def video_command(frames_dir, out_path, fps=24, blender=None):
             frames_dir, out_path, str(int(round(fps)))]
 
 
+PREVIEW_SCRIPT = os.path.join(REPO, "blender", "preview_look.py")
+
+
+def preview_command(look_json, out_png, width=480, height=300, blender=None):
+    """Blender command that renders a preview swatch of one (unsaved) look."""
+    blender = blender or find_blender()
+    if not blender:
+        raise RuntimeError("Blender not found.")
+    return [blender, "-b", "--factory-startup", "--python", PREVIEW_SCRIPT, "--",
+            look_json, out_png, str(int(width)), str(int(height))]
+
+
 def blender_version(path=None):
     """'5.3.0' for the given (or found) Blender, cached; None if it can't run."""
     path = path or find_blender()

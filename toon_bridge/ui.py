@@ -382,6 +382,10 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         row.addWidget(self.apply_btn)
         row.addWidget(self.overwrite_chk)
         row.addStretch(1)
+        self.edit_looks_btn = QtWidgets.QPushButton("Edit looks…")
+        self.edit_looks_btn.setToolTip("Open the Look Editor: the EEVEE node graph of each look, with a live preview")
+        self.edit_looks_btn.clicked.connect(lambda: self.open_look_editor())
+        row.addWidget(self.edit_looks_btn)
         card.body.addLayout(row)
 
         self.obj_filter = QtWidgets.QLineEdit()
@@ -398,6 +402,9 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.obj_table.header().setStretchLastSection(True)
         self.obj_table.setMinimumHeight(180)
         self.obj_table.itemSelectionChanged.connect(self._table_to_maya_selection)
+        self.obj_table.itemDoubleClicked.connect(
+            lambda it, _c: self.open_look_editor(looks_mod.get_look(it.data(0, QtCore.Qt.UserRole))))
+        self.obj_table.setToolTip("Double-click an object to edit its look")
         card.body.addWidget(self.obj_table)
 
         row2 = QtWidgets.QHBoxLayout()
@@ -531,6 +538,22 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.refresh_table()
         self.run_check()
         return done
+
+    def open_look_editor(self, look=None):
+        from . import look_editor
+        return look_editor.show(look or self.sel_look_combo.currentData())
+
+    def reload_looks(self):
+        """After the Look Editor saves: new or renamed looks appear in every dropdown."""
+        self.looks = looks_mod.load_looks()
+        cur = self.sel_look_combo.currentData()
+        self.sel_look_combo.clear()
+        for name, look in self.looks.items():
+            self.sel_look_combo.addItem(_swatch(look), look.get("label", name), name)
+        if self.sel_look_combo.findData(cur) >= 0:
+            self.sel_look_combo.setCurrentIndex(self.sel_look_combo.findData(cur))
+        self.refresh_table()
+        self.run_check()
 
     def toggle_preview(self, on):
         n = looks_mod.preview_on() if on else looks_mod.preview_off()

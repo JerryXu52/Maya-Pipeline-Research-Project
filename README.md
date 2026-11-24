@@ -49,8 +49,29 @@ colour and output folder are under **Advanced settings**.
 
 **Try it:** *Toon Bridge → Demo Scenes → Rooftop jump*, then press **Render**.
 
-**Your own looks:** open `blender/look_library.blend` in Blender, edit a material's
-nodes and save; every render from Maya uses your edits. New looks go in `blender/looks.json`.
+**Your own looks: the Look Editor** (*Toon Bridge → Look Editor…*, the **Edit looks…** button,
+or double-click an object in the list). Every look is an EEVEE node graph; the editor
+draws it like Blender's node editor and lets you change every node, with a preview
+Blender renders in the background as you edit, on a test swatch or **this frame of your shot**:
+
+![Look Editor](docs/images/look_editor.png)
+
+| Node | What you can change |
+|---|---|
+| **Bands** (Color Ramp, Constant) | drag stops, double-click to add one, pick each band's colour |
+| **Base Colour** | the object's Maya colour, or a fixed colour |
+| **Saturation** | 0–2.5 |
+| **Specular** | on/off, roughness, cut-off, colour |
+| **Halftone Dots** | on/off, dots per screen, where dots start, biggest dot, angle, dot colour |
+| **Hatching** | on/off, how dark, lines per screen, width, angle, ink colour |
+| **Rim Light** | on/off, edge threshold, colour, add or replace |
+| **Outline** | on/off, width, colour (3D outline style) |
+
+Click the dot in an optional node's header to switch it off; the wire then bypasses it
+(dashed), like a muted node in Blender. **Save looks** writes `blender/looks.json`, and the
+next render uses it. Duplicate a look to make your own. For node trees you'd rather build
+in Blender's own node editor, edit `blender/look_library.blend` and tick
+*Use the version hand-edited in look_library.blend* for that look.
 
 <br clear="right">
 
@@ -152,6 +173,8 @@ the shot; `toon_bridge.launcher.build_command(shot_json)` gives the Blender comm
 | `mayapy tests/camera_match.py 36`: Maya Software vs Blender, same frame | **99.20%** of pixels agree on object vs background; the rest are 1-px antialiased edges ([image](docs/images/camera_match_36.png)) |
 | `mayapy tests/run_end_to_end.py --all` | 72/72 frames, 1280×720, rendered in 35 s; PASS |
 | Pre-flight test with planted problems (duplicate name, unknown look, mirrored mesh) | all found; fixes resolved name/look errors |
+| `mayapy tests/look_editor_smoke.py`: drives the Look Editor | 16/16: graph nodes, switching nodes on/off, ramp edits, swatch and this-frame previews with unsaved looks, save, duplicate, revert |
+| `python3 -m unittest tests.test_lookdefs` | every library look fits the template; old formats convert; save/load round-trips |
 | `mayapy tests/ui_smoke.py`: loads the plug-in and drives the real panel | 26/26: plug-in load/unload, style cards assign looks by name, per-object looks, Fix all, render a frame and a range through the background Blender job, viewer follows the timeline, image plane on the camera, Export MP4 |
 | `mayapy demo/make_video.py` | renders the shot 3 ways (Maya Software, hull, ink) and builds the demo video |
 
@@ -249,10 +272,11 @@ tested on my own skinned demo character.
 
 ```
 plug-ins/      toonBridge.py: the Maya plug-in (menu, toonBridge command)
-toon_bridge/   Maya package: ui.py (panel), menu.py, styles.py, looks.py, preflight.py,
+toon_bridge/   Maya package: ui.py (panel), look_editor.py (node-graph Look Editor), lookdefs.py
+               (the look template), menu.py, styles.py, looks.py, preflight.py,
                exporter.py, launcher.py, convert.py, icons/
 blender/       render.py, toon_materials.py, build_library.py, looks.json, look_library.blend,
-               encode_video.py (MP4), style_thumbs.py (style-card images)
+               encode_video.py (MP4), style_thumbs.py (style-card images), preview_look.py (editor preview)
 demo/          make_demo_scene.py, toon_demo.ma, make_video.py,
                make_presentation_scene.py, presentation.ma, prerender_presentation.py, textures/
 tests/         test_convert.py, light_match_blender.py, camera_match.py, run_end_to_end.py, ui_smoke.py, stress_scenes.py

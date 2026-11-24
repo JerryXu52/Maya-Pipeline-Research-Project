@@ -41,6 +41,30 @@ A walk through every part, in the order the data flows. Each section says
   *Export MP4* runs `blender/encode_video.py` (image strip in Blender's Video Sequencer → H.264).
 * The style-card pictures are rendered by Blender (`blender/style_thumbs.py`) from the real looks.
 
+## 0b. The Look Editor (`toon_bridge/look_editor.py`, `toon_bridge/lookdefs.py`)
+
+* **One template for every look** (`lookdefs.py`, pure Python): Light → Shader to RGB →
+  L (how lit) → Bands (Constant Color Ramp) × Base Colour → Saturation → Specular →
+  Halftone → Hatching → Rim → Emission, plus an Outline on the object. Optional nodes have
+  `enabled`. `normalize()` fills in defaults and converts the older cel / pop formats;
+  `compact()` writes only what's switched on, so `looks.json` stays readable.
+* **One builder** (`build_look` in `blender/toon_materials.py`) turns any look into that
+  node tree, with every node named `TB …` so it reads well in Blender. It replaced the two
+  separate cel and pop builders; the look sheet before and after differs by 39.6 dB PSNR
+  (visually identical).
+* **Renders build materials from the look data** (`materials_for` in `render.py`), so a
+  saved edit is used on the next render with no rebuild. A look with
+  `"source": "blend"` uses the material hand-edited in `look_library.blend` instead.
+* **The editor** draws the graph with `QGraphicsView` (nodes are items; wires are painted
+  in `drawBackground`, because Qt deleted separate wire items once Maya re-parented the
+  window). Clicking a node fills the inspector; edits go into the look dict and start a
+  350 ms timer, so a preview renders when you stop dragging. A newer edit during a render
+  queues one more render.
+* **Preview:** *Swatch* runs `blender/preview_look.py` (sphere, ring, neutral floor) in
+  about 0.7 s. *This frame* writes the unsaved looks to a temp file, exports the current
+  frame with `looks_file` set in `shot.json`, and renders it like a normal render. It runs
+  the scene check first, because Alembic cannot export duplicate names.
+
 ## 1. Tagging looks (`toon_bridge/looks.py`)
 
 * A look is a string attribute `toonLook` on the mesh's **transform**.
