@@ -19,7 +19,11 @@ pre-render its frames with `mayapy demo/prerender_presentation.py`.
 
 ## Before class
 
-1. `mayapy demo/prerender_presentation.py` (about a minute), so the flipbook is ready.
+1. Pre-render the shot (about a minute), so the flipbook is ready. Either:
+   - **Terminal:** `/Applications/Autodesk/maya2026/Maya.app/Contents/bin/mayapy demo/prerender_presentation.py`
+   - **Inside Maya:** open `demo/prerender_presentation.py` in the Script Editor (Python tab) and run it.
+     It starts a separate background job, so your open scene is not touched; a message
+     at the top of the viewport says when the 96 frames are done.
 2. In Maya: drag `drag_into_maya.py` into the viewport, then open `demo/presentation.ma`.
 3. Dock the panel on the right; set the viewport to look through `shotCam`, frame 36.
 
