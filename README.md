@@ -57,7 +57,8 @@ renders the whole animation.
 |---|---|
 | **Halftone (Ben-Day) dots** that grow in shadow | Shader to RGB gives the light value; a 45° dot grid in **screen space** (Texture Coordinate → Window) draws dots whose radius grows as the light gets darker |
 | **Hatching** in the darkest shadow | diagonal screen-space stripes where the light value is below a threshold |
-| **Flat, punchy colour** | lit/shadow posterize + a saturation boost |
+| **Flat, punchy colour** | lit/shadow posterize + a saturation boost; shadows tinted purple, not grey |
+| **Coloured rim light** | Layer Weight (facing) above a threshold mixes in a cyan/magenta edge colour |
 | **Ink lines** | Freestyle strokes with a constant pixel width (silhouette + creases) |
 | **Misregistration** | after each frame, the red plate shifts right/down and the blue plate left/up by N px (numpy in Blender) |
 | **Animate on twos** | render every other frame and hold it for two frames, which gives a hand-drawn rhythm |
@@ -181,6 +182,10 @@ blender -b --python blender/build_library.py -- --sheet docs/images/look_sheet.p
 * Tested on macOS only; Windows/Linux Blender paths are written but untested.
 
 ## What I'd do next
+
+* **Push the comic style further**: colour offset that grows with depth (out-of-focus
+  areas split into colour plates instead of blurring), hatching that follows the form,
+  hand-painted inner ink lines, and a paper/print texture.
 
 1. **Live link**: keep one Blender running as a socket server so scrubbing
    the timeline re-renders in under a second.

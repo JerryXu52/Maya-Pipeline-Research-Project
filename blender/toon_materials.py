@@ -433,7 +433,22 @@ def build_pop_look(name, look):
     links.new(hatch, mix_h.inputs["Factor"])
     links.new(mix_d.outputs[2], mix_h.inputs[6])
     mix_h.inputs[7].default_value = (*hatch_col, 1)
-    links.new(mix_h.outputs[2], emit.inputs["Color"])
+    result = mix_h.outputs[2]
+    # coloured rim light (cyan/magenta edge glow), a staple of the comic look
+    rim = look.get("rim")
+    if rim:
+        lw = nodes.new("ShaderNodeLayerWeight")
+        lw.location = (1100, -300)
+        lw.inputs["Blend"].default_value = 0.45
+        edge = _math(nodes, links, "GREATER_THAN", lw.outputs["Facing"], rim.get("threshold", 0.62), (1300, -300))
+        mix_r = nodes.new("ShaderNodeMix")
+        mix_r.data_type = "RGBA"
+        mix_r.location = (1500, 200)
+        links.new(edge, mix_r.inputs["Factor"])
+        links.new(result, mix_r.inputs[6])
+        mix_r.inputs[7].default_value = (*rim.get("color", [0.2, 0.9, 1.0]), 1)
+        result = mix_r.outputs[2]
+    links.new(result, emit.inputs["Color"])
     return mat
 
 
