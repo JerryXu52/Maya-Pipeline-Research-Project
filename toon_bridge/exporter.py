@@ -170,7 +170,7 @@ def export_alembic(roots, start, end, path):
     cmds.AbcExport(j=job)
 
 
-def export_shot(camera, start, end, shot_dir=None, settings=None, objects=None):
+def export_shot(camera, start, end, shot_dir=None, settings=None, objects=None, looks_file=None):
     """Write <shot_dir>/scene.abc and <shot_dir>/shot.json. Returns the json path."""
     shot_dir = shot_dir or default_shot_dir()
     os.makedirs(shot_dir, exist_ok=True)
@@ -213,6 +213,8 @@ def export_shot(camera, start, end, shot_dir=None, settings=None, objects=None):
         "objects": obj_info,
         "settings": st,
     }
+    if looks_file:                 # the Look Editor previews unsaved looks from a temp file
+        shot["looks_file"] = os.path.abspath(looks_file)
     path = os.path.join(shot_dir, "shot.json")
     with open(path, "w") as f:
         json.dump(shot, f, indent=1)

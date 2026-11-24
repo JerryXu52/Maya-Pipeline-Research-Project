@@ -28,7 +28,7 @@ REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 sys.path.insert(0, REPO)
 import toon_materials as tm  # noqa: E402
-from toon_bridge import convert  # noqa: E402
+from toon_bridge import convert, lookdefs  # noqa: E402
 
 LIBRARY = os.path.join(HERE, "look_library.blend")
 LOOKS_JSON = os.path.join(HERE, "looks.json")
@@ -51,19 +51,39 @@ def parse_args():
     return args
 
 
-def load_looks():
-    with open(LOOKS_JSON) as f:
+def load_looks(path=None):
+    """The look library: blender/looks.json, or the file the Look Editor passes in."""
+    with open(path or LOOKS_JSON) as f:
         return {k: v for k, v in json.load(f).items() if not k.startswith("_")}
 
 
 def append_materials(names):
-    """Append look materials (and their __outline partners) from the library."""
+    """Hand-edited materials from look_library.blend (looks marked "source": "blend")."""
     wanted = set()
     for n in names:
         wanted.update([n, n + "__outline"])
     with bpy.data.libraries.load(LIBRARY, link=False) as (src, dst):
         dst.materials = [m for m in src.materials if m in wanted]
     return {m.name: m for m in dst.materials if m is not None}
+
+
+def materials_for(names, looks):
+    """Build each look's node tree from its data, so edits show up on the next render.
+
+    A look marked "source": "blend" uses the material from look_library.blend
+    instead, for node trees an artist edited by hand in Blender.
+    """
+    mats = {}
+    from_blend = [n for n in names if looks[n].get("source") == "blend"]
+    if from_blend and os.path.isfile(LIBRARY):
+        mats.update(append_materials(from_blend))
+    for n in names:
+        if n not in mats:
+            mats[n] = tm.build_look(n, looks[n])
+            outline = tm.build_outline(n, looks[n])
+            if outline:
+                mats[n + "__outline"] = outline
+    return mats
 
 
 def textured_copy(mat, path, obj_name, posterize=False):
@@ -108,7 +128,7 @@ def apply_looks(shot, imported, looks, outlines_on, hull=True):
     by_name = {o["name"]: o for o in shot["objects"]}
     used = {by_name.get(ob.name, {}).get("look", DEFAULT_LOOK) for ob in imported if ob.type == "MESH"}
     used = {u if u in looks else DEFAULT_LOOK for u in used}
-    mats = append_materials(used)
+    mats = materials_for(sorted(used), looks)
     scale = shot.get("settings", {}).get("outline_scale", 1.0)
     report = []
     for ob in imported:
@@ -129,7 +149,8 @@ def apply_looks(shot, imported, looks, outlines_on, hull=True):
         # one material for every face (Alembic face sets would add more slots)
         for poly in ob.data.polygons:
             poly.material_index = 0
-        width = looks[look].get("outline", {}).get("width_cm", 0) * convert.CM_TO_M * scale
+        o = lookdefs.normalize(looks[look])["outline"]
+        width = (o.get("width_cm", 0) if o.get("enabled") else 0) * convert.CM_TO_M * scale
         if outlines_on and hull and width > 0:
             tm.add_outline(ob, mats.get(look + "__outline"), width)
         report.append((ob.name, look))
@@ -258,7 +279,7 @@ def main():
         shot = json.load(f)
     shot_dir = os.path.dirname(args["shot"])
     st = shot.get("settings", {})
-    looks = load_looks()
+    looks = load_looks(shot.get("looks_file") or None)
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
