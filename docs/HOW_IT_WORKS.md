@@ -120,6 +120,20 @@ Layer Weight (Facing) ─► > threshold ─► × rim colour ────+┤  
   node trees, save. `render.py` *appends* materials from that file by name.
   Re-running `build_library.py` resets them from `looks.json`.
 
+### Pop-art comic looks (`build_pop_look`, `type: "pop"` in looks.json)
+
+```
+Diffuse ─► Shader to RGB ─► RGB to BW = L (light value)
+Window coords × aspect ─► rotate 45° ─► fract − 0.5 ─► distance d to cell centre
+dot radius r = max(0, (dots_below − L) / dots_below) × max_dot      dots  = d < r
+(x − y) × hatch freq ─► fract < width   AND   L < hatch_below         hatch
+colour = base × (shadow tint | white by L) ─► saturation ─► mix dots ─► mix hatch ─► Emission
+```
+Window coordinates make the pattern screen-space, like a printed page; render.py
+sets the `TB_Aspect` value node to width/height so dots stay round. After each
+frame, `misregister()` shifts the red and blue channels with numpy, and
+`on_twos` copies every other frame instead of rendering it.
+
 ### Outlines: inverted hull (`add_outline`)
 
 A Solidify modifier makes a slightly bigger shell with flipped normals,

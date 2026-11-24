@@ -1,10 +1,13 @@
-# Toon Bridge: render Maya shots with Blender EEVEE cel shading
+# Toon Bridge: render Maya shots with a Blender EEVEE pop-art comic look
 
 **Jianrui (Jerry) Xu · SVA MFA Computer Arts · Research Project · Nov 2026**
 
-Toon Bridge is a Maya panel. You tag objects with toon looks built in Blender's
+Toon Bridge is a Maya panel. You tag objects with stylized looks built in Blender's
 node editor, press **Render**, and a background copy of Blender renders the shot
-with EEVEE. The cel-shaded frames come back into Maya.
+with EEVEE. The frames come back into Maya. The main look is a **pop-art comic
+style** (inspired by the comic-book look of films like *Spider-Man: Into the
+Spider-Verse*): halftone dots, hatching, ink lines, off-register print colours
+and animation on twos. Plain cel looks are included too.
 
 **▶ Demo video: [docs/video/toon_bridge_demo.mp4](docs/video/toon_bridge_demo.mp4)** (42 s, rendered by the tool:
 Maya render vs Toon Bridge side by side, 3D hull vs 2D ink lines, look library, camera match)
@@ -42,10 +45,24 @@ renders the whole animation.
 |---|---|---|
 | Geometry via Alembic **or USD** | **Alembic** for geometry + **shot.json** for camera, lights, looks | Alembic bakes skinned/deformed meshes per frame and Blender imports it reliably. Camera and lights go as raw Maya numbers so the conversion lives in *one tested file* instead of inside two importers. |
 | Look library in a hand-made .blend | Looks are **data** (`looks.json`); a script builds `look_library.blend` | Reproducible and easy to diff. You can still edit the materials by hand in Blender: render.py appends them from the .blend by name. |
+| Cel-shaded (3D-to-2D) looks | **Pop-art comic** look as the main style; cel looks kept | After testing the cel looks I wanted a stronger graphic, printed-comic style: screen-space halftone, hatching, misregistration and animating on twos. |
 | Outlines with **Line Art** or inverted hull | **Two line styles**: 2D ink lines (Freestyle, the default) and 3D inverted-hull outlines | The hull is a 3D shell, so lines thin out with distance and read as 3D. For a real 3D-to-2D look I added Freestyle strokes with a constant pixel width, plus inner crease lines. |
 | Pre-flight as a separate tool | Pre-flight **inside** the bridge (7 checks, 3 with one-click fixes) | The "combine" option from the proposal: checks what the bridge needs (unique names, looks, lights...). |
 | Viewport shows a Maya preview | Viewport preview with **rampShader** stand-ins | Not in the proposal: added so artists see bands in Maya before rendering. |
 | Live-link ("preview current frame" fast button) | Not built; current frame renders in **~1.6 s** anyway | Blender starts headless fast enough that a persistent server wasn't needed for this shot. |
+
+## The pop-art comic look
+
+| Effect | How it's made |
+|---|---|
+| **Halftone (Ben-Day) dots** that grow in shadow | Shader to RGB gives the light value; a 45° dot grid in **screen space** (Texture Coordinate → Window) draws dots whose radius grows as the light gets darker |
+| **Hatching** in the darkest shadow | diagonal screen-space stripes where the light value is below a threshold |
+| **Flat, punchy colour** | lit/shadow posterize + a saturation boost |
+| **Ink lines** | Freestyle strokes with a constant pixel width (silhouette + creases) |
+| **Misregistration** | after each frame, the red plate shifts right/down and the blue plate left/up by N px (numpy in Blender) |
+| **Animate on twos** | render every other frame and hold it for two frames, which gives a hand-drawn rhythm |
+
+Looks: `pop_comic` (keeps the Maya colour), `pop_skin`, `pop_ground`. Panel options: *Print effects* (misregistration px, on twos).
 
 ## What I made
 
@@ -55,8 +72,8 @@ renders the whole animation.
   3. **Pre-flight**: traffic-light checks; double-click selects the problem nodes; **Fix** button where a fix is safe
   4. **Render**: Current Frame / Shot / Stop; progress bar; Maya stays usable while Blender renders
   5. **Result**: frames appear as they render; flipbook playback; Show in Render View; Open Folder; **Open .blend in Blender**
-* **9 toon looks** (`blender/looks.json`): Cel 2D (anime two-tone with cool
-  shadow), Ground 2D, Toon (keep Maya colour), Anime skin, Comic cel, Cel metal
+* **12 looks** (`blender/looks.json`): **Pop comic, Pop skin, Pop ground** (halftone),
+  Cel 2D (anime two-tone with cool shadow), Ground 2D, Toon (keep Maya colour), Anime skin, Comic cel, Cel metal
   (bands + specular + rim), Painted ground, Flat 2D, Manga.
 * **Two line styles**: *2D ink lines* (Freestyle; constant width on screen,
   silhouette + crease) or *3D hull outlines* (per-look width), or both.
@@ -152,6 +169,8 @@ blender -b --python blender/build_library.py -- --sheet docs/images/look_sheet.p
 ## What doesn't work yet
 
 * **Textures**: looks use one flat colour per object; textured objects come out grey.
+* **Misregistration wraps at the frame edge** (a 3-px coloured line on the opposite border).
+* **Halftone dots are screen-locked**: they don't stick to the surface when the camera moves (that's the printed look, but some shots may want object-space dots).
 * **Point/spot/area light intensity** is approximate (directional is exact);
   Arnold lights (aiAreaLight, skydome) are not converted.
 * **Multiple materials on one mesh** (per-face shading groups) get one look for the whole mesh.

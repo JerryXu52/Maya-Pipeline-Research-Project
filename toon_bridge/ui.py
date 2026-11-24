@@ -241,6 +241,18 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
                             ("3D hull outlines (per-look width)", "hull"), ("Both", "both")]:
             self.line_combo.addItem(label, mode)
         form.addRow("Line style", self.line_combo)
+        pop = QtWidgets.QHBoxLayout()
+        self.misreg_spin = QtWidgets.QSpinBox()
+        self.misreg_spin.setRange(0, 12)
+        self.misreg_spin.setValue(3)
+        self.misreg_spin.setSuffix(" px")
+        self.twos_chk = QtWidgets.QCheckBox("Animate on twos")
+        self.twos_chk.setChecked(True)
+        pop.addWidget(QtWidgets.QLabel("Misregistration"))
+        pop.addWidget(self.misreg_spin)
+        pop.addWidget(self.twos_chk)
+        pop.addStretch(1)
+        form.addRow("Print effects", pop)
         self.outline_spin = QtWidgets.QDoubleSpinBox()
         self.outline_spin.setRange(0.1, 10.0)
         self.outline_spin.setSingleStep(0.25)
@@ -405,6 +417,8 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
             "transparent": self.transp_chk.isChecked(),
             "outline_scale": self.outline_spin.value(),
             "line_mode": self.line_combo.currentData(),
+            "misregister_px": self.misreg_spin.value(),
+            "on_twos": self.twos_chk.isChecked(),
         }
 
     # ------------------------------------------------------------- pre-flight
