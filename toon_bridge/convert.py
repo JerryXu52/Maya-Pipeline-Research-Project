@@ -85,7 +85,7 @@ def sun_strength(intensity):
 
     A Maya Lambert lit head-on by intensity 1.0 returns its own colour.
     Blender's diffuse BSDF returns colour * strength / pi, so strength must be
-    intensity * pi to give the same brightness (checked by tests/test_light_match).
+    intensity * pi to give the same brightness (checked by tests/light_match_blender).
     """
     return intensity * math.pi
 
