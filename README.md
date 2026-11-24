@@ -45,6 +45,10 @@ EEVEE through Toon Bridge in the pop-art comic look.*
 **Try it in one minute:** open `demo/toon_demo.ma` (looks already assigned),
 choose `shotCam`, press **Render Current Frame**.
 
+**Presentation scene:** `demo/presentation.ma`, a rooftop jump at dusk staged for a
+live demo (the hero has no look yet, two buildings share a name for pre-flight
+to catch). Step-by-step script: [docs/PRESENTATION_DEMO.md](docs/PRESENTATION_DEMO.md).
+
 **Your own looks:** open `blender/look_library.blend` in Blender, edit a
 material's nodes and save. Every render from Maya uses your edits. New looks go
 in `blender/looks.json`.
@@ -247,7 +251,8 @@ tested on my own skinned demo character.
 ```
 toon_bridge/   Maya package: ui.py, looks.py, preflight.py, exporter.py, launcher.py, convert.py
 blender/       render.py, toon_materials.py, build_library.py, looks.json, look_library.blend
-demo/          make_demo_scene.py, toon_demo.ma, make_video.py
+demo/          make_demo_scene.py, toon_demo.ma, make_video.py,
+               make_presentation_scene.py, presentation.ma, prerender_presentation.py, textures/
 tests/         test_convert.py, light_match_blender.py, camera_match.py, run_end_to_end.py, ui_smoke.py, stress_scenes.py
 docs/          HOW_IT_WORKS.md, PROPOSAL.md (original), images/, video/
 drag_into_maya.py   installer

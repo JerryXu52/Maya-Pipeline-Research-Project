@@ -15,3 +15,6 @@ renders/
 __pycache__/
 *.pyc
 .DS_Store
+
+# pre-rendered presentation frames
+demo/toon_bridge/

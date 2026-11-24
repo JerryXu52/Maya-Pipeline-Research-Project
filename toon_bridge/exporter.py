@@ -128,6 +128,26 @@ def light_data(frames):
     return out
 
 
+BG_ATTR = "defaultRenderGlobals.toonBackground"
+
+
+def scene_background():
+    """The scene's toon background colour (saved with the scene), or None."""
+    if cmds.objExists(BG_ATTR):
+        return list(cmds.getAttr(BG_ATTR)[0])
+    return None
+
+
+def set_scene_background(rgb):
+    if not cmds.objExists(BG_ATTR):
+        cmds.addAttr("defaultRenderGlobals", longName="toonBackground", usedAsColor=True,
+                     attributeType="float3")
+        for ch in "RGB":
+            cmds.addAttr("defaultRenderGlobals", longName="toonBackground" + ch,
+                         attributeType="float", parent="toonBackground")
+    cmds.setAttr(BG_ATTR, *rgb, type="float3")
+
+
 def alembic_roots(transforms):
     """Drop transforms whose ancestor is already exported (it comes along)."""
     chosen = set(transforms)
@@ -174,6 +194,9 @@ def export_shot(camera, start, end, shot_dir=None, settings=None, objects=None):
         })
 
     st = dict(DEFAULT_SETTINGS)
+    bg = scene_background()
+    if bg:
+        st["background"] = bg
     st.update(settings or {})
     shot = {
         "version": 1,

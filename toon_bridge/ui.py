@@ -255,6 +255,15 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         pop.addWidget(self.twos_chk)
         pop.addStretch(1)
         form.addRow("Print effects", pop)
+        bg_row = QtWidgets.QHBoxLayout()
+        self.bg_btn = QtWidgets.QPushButton()
+        self.bg_btn.setFixedWidth(60)
+        self.bg_btn.clicked.connect(self.pick_background)
+        bg_row.addWidget(self.bg_btn)
+        bg_row.addWidget(QtWidgets.QLabel("sky / backdrop colour, saved in the scene"))
+        bg_row.addStretch(1)
+        form.addRow("Background", bg_row)
+        self._show_background()
         self.outline_spin = QtWidgets.QDoubleSpinBox()
         self.outline_spin.setRange(0.1, 10.0)
         self.outline_spin.setSingleStep(0.25)
@@ -387,6 +396,8 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 
     # ------------------------------------------------------------- shot
     def refresh_cameras(self):
+        if hasattr(self, "bg_btn"):
+            self._show_background()
         cur = self.cam_combo.currentData()
         self.cam_combo.clear()
         for c in exporter.render_cameras():
@@ -399,6 +410,18 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
     def use_playback_range(self):
         self.start_spin.setValue(int(cmds.playbackOptions(query=True, minTime=True)))
         self.end_spin.setValue(int(cmds.playbackOptions(query=True, maxTime=True)))
+
+    def _show_background(self):
+        rgb = exporter.scene_background() or exporter.DEFAULT_SETTINGS["background"]
+        c = QtGui.QColor.fromRgbF(*rgb)
+        self.bg_btn.setStyleSheet("background:%s; border:1px solid #555; border-radius:3px;" % c.name())
+
+    def pick_background(self):
+        rgb = exporter.scene_background() or exporter.DEFAULT_SETTINGS["background"]
+        c = QtWidgets.QColorDialog.getColor(QtGui.QColor.fromRgbF(*rgb), self, "Background colour")
+        if c.isValid():
+            exporter.set_scene_background([c.redF(), c.greenF(), c.blueF()])
+            self._show_background()
 
     def browse_out(self):
         d = QtWidgets.QFileDialog.getExistingDirectory(self, "Shot folder", self.out_edit.text())
