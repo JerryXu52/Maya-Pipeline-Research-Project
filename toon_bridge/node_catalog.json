@@ -209,6 +209,19 @@
 "Bump"
 ]
 ]
+],
+[
+"Layout",
+[
+[
+"NodeFrame",
+"Frame"
+],
+[
+"NodeReroute",
+"Reroute"
+]
+]
 ]
 ],
 "nodes": {
@@ -4487,6 +4500,137 @@
 }
 ],
 "category": "Vector"
+},
+"NodeFrame": {
+"name": "Frame",
+"type": "NodeFrame",
+"label": "",
+"title": "Frame",
+"location": [
+0.0,
+0.0
+],
+"width": 160.0,
+"mute": false,
+"props": {
+"shrink": {
+"type": "BOOLEAN",
+"value": true,
+"label": "Shrink"
+},
+"label_size": {
+"type": "INT",
+"value": 20,
+"label": "Label Font Size"
+}
+},
+"height": 100.0,
+"inputs": [],
+"outputs": [],
+"category": "Layout"
+},
+"NodeReroute": {
+"name": "Reroute",
+"type": "NodeReroute",
+"label": "",
+"title": "Reroute",
+"location": [
+0.0,
+0.0
+],
+"width": 140.0,
+"mute": false,
+"props": {
+"socket_idname": {
+"type": "STRING",
+"value": "NodeSocketColor",
+"label": "Type of socket"
+}
+},
+"inputs": [
+{
+"id": "Input",
+"name": "Input",
+"type": "RGBA",
+"enabled": true,
+"value": [
+0.0,
+0.0,
+0.0,
+1.0
+]
+}
+],
+"outputs": [
+{
+"id": "Output",
+"name": "Output",
+"type": "RGBA",
+"enabled": true,
+"value": [
+0.0,
+0.0,
+0.0,
+1.0
+]
+}
+],
+"category": "Layout"
+},
+"ShaderNodeGroup": {
+"name": "Group",
+"type": "ShaderNodeGroup",
+"label": "",
+"title": "Group",
+"location": [
+0.0,
+0.0
+],
+"width": 140.0,
+"mute": false,
+"props": {},
+"group": "",
+"inputs": [],
+"outputs": [],
+"category": "Group"
+},
+"NodeGroupInput": {
+"name": "Group Input",
+"type": "NodeGroupInput",
+"label": "",
+"title": "Group Input",
+"location": [
+0.0,
+0.0
+],
+"width": 140.0,
+"mute": false,
+"props": {},
+"inputs": [],
+"outputs": [],
+"category": "Group"
+},
+"NodeGroupOutput": {
+"name": "Group Output",
+"type": "NodeGroupOutput",
+"label": "",
+"title": "Group Output",
+"location": [
+0.0,
+0.0
+],
+"width": 140.0,
+"mute": false,
+"props": {
+"is_active_output": {
+"type": "BOOLEAN",
+"value": true,
+"label": "Active Output"
+}
+},
+"inputs": [],
+"outputs": [],
+"category": "Group"
 }
 }
 }

@@ -51,3 +51,62 @@ class GraphModelTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LayoutAndGroupsTest(unittest.TestCase):
+    def chain(self):
+        g = {"nodes": [], "links": []}
+        v = gm.add_node(g, "ShaderNodeValue", (0, 0))
+        m1 = gm.add_node(g, "ShaderNodeMath", (200, 0))
+        m2 = gm.add_node(g, "ShaderNodeMath", (400, 0))
+        e = gm.add_node(g, "ShaderNodeEmission", (600, 0))
+        gm.connect(g, v, "Value", m1, "Value")
+        gm.connect(g, m1, "Value", m2, "Value")
+        gm.connect(g, m2, "Value", e, "Strength")
+        return g, v, m1, m2, e
+
+    def test_frame_and_unframe(self):
+        g, v, m1, m2, e = self.chain()
+        f = gm.join_in_frame(g, [m1, m2], "Maths")
+        self.assertEqual([n["name"] for n in gm.children(g, f)], [m1, m2])
+        gm.remove_from_frame(g, [m1])
+        self.assertEqual([n["name"] for n in gm.children(g, f)], [m2])
+        gm.remove_node(g, f)
+        self.assertNotIn("parent", gm.node(g, m2))
+
+    def test_reroute_keeps_the_connection(self):
+        g, v, m1, m2, e = self.chain()
+        r = gm.insert_reroute(g, [m1, "Value", m2, "Value"], (300, -50))
+        self.assertIn([m1, "Value", r, "Input"], g["links"])
+        self.assertIn([r, "Output", m2, "Value"], g["links"])
+
+    def test_group_then_ungroup_restores_wiring(self):
+        g, v, m1, m2, e = self.chain()
+        before = sorted(map(tuple, g["links"]))
+        gn = gm.make_group(g, g, [m1, m2], "Maths")
+        grp = g["groups"]["Maths"]
+        self.assertEqual([i["in_out"] for i in grp["interface"]], ["INPUT", "OUTPUT"])
+        self.assertEqual(len([l for l in g["links"] if gn in (l[0], l[2])]), 2)
+        self.assertIsNone(gm.node(g, m1))
+        gm.ungroup(g, g, gn)
+        self.assertNotIn("groups", g)
+        self.assertEqual(sorted(map(tuple, g["links"])), before)
+
+
+class LayoutTest(unittest.TestCase):
+    def test_auto_layout_has_no_overlaps(self):
+        g = {"nodes": [], "links": []}
+        out = gm.add_node(g, "ShaderNodeEmission", (0, 0))
+        prev = out
+        for i in range(6):                     # a fan of math nodes feeding a chain
+            m = gm.add_node(g, "ShaderNodeMath", (0, 0))
+            gm.connect(g, m, "Value", prev if i % 2 == 0 else out, "Strength" if prev == out else "Value")
+            prev = m
+        gm.auto_layout(g)
+        boxes = [(n["location"][0], n["location"][1] - gm.node_height(n), n["location"][0] + n.get("width", 140),
+                  n["location"][1]) for n in g["nodes"]]
+        for i, a in enumerate(boxes):
+            for b in boxes[i + 1:]:
+                overlap = a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+                self.assertFalse(overlap)
+        self.assertEqual(max(n["location"][0] for n in g["nodes"]), gm.node(g, out)["location"][0])
