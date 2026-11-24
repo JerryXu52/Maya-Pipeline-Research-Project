@@ -77,12 +77,21 @@ EEVEE node tree Blender builds (Pop-Art Comic: 48 nodes, 58 links), every Math n
 
 | Do | How |
 |---|---|
-| Edit any value, colour, vector, setting (operation, data type, blend mode…), ramp | click the node, use the inspector on the right |
+| Change a number | **drag it sideways on the node** to scrub (Shift = fine), or **click it and type** (`1/3` works) |
+| Change a colour / a setting / a checkbox | click it **on the node**: colour picker, Blender's dropdown, toggle |
+| Edit anything else (vectors, ramps, labels) | the inspector on the right |
 | Connect / reconnect / pull off a wire | drag from an output to an input; drag a linked input away |
-| Add a node (45 types, Blender's menu: Input, Shader, Texture, Color, Converter, Vector) | right-click the graph or **Shift+A** |
+| Add a node (50 types, Blender's menu: Input, Shader, Texture, Color, Converter, Vector, Layout, Group) | right-click the graph or **Shift+A** |
+| **Node groups** | select nodes → **Ctrl+G**; **Tab** (or double-click) goes inside, Tab comes back out; **Ctrl+Alt+G** ungroups; add more copies from *Add → Group* |
+| **Frames** | select nodes → **Ctrl+J**; drag the frame to move everything in it; **Alt+P** takes a node out |
+| **Reroutes** | right-click a wire → *Insert reroute here* (or *Add → Layout → Reroute*) |
+| **Image Texture** | click the image row on the node, or *Browse…* in the inspector (with a thumbnail) |
+| Tidy the graph | right-click → *Arrange all nodes* (Blender's template graph is arranged automatically) |
 | Delete / mute | **X** or Delete / right-click |
 | Navigate | wheel zoom, middle-drag or Alt+drag pan, **F** frame all |
 | Undo / redo | **Ctrl+Z** / **Ctrl+Shift+Z** |
+
+![Groups, frames and on-node values](docs/images/node_graph_layout.png)
 
 After each change Blender rebuilds the graph in the background (about a second) and sends back
 its exact version, so sockets appear and disappear as in Blender (switch a Mix node to *Float*
@@ -192,8 +201,8 @@ the shot; `toon_bridge.launcher.build_command(shot_json)` gives the Blender comm
 | `mayapy tests/camera_match.py 36`: Maya Software vs Blender, same frame | **99.20%** of pixels agree on object vs background; the rest are 1-px antialiased edges ([image](docs/images/camera_match_36.png)) |
 | `mayapy tests/run_end_to_end.py --all` | 72/72 frames, 1280×720, rendered in 35 s; PASS |
 | Pre-flight test with planted problems (duplicate name, unknown look, mirrored mesh) | all found; fixes resolved name/look errors |
-| `mayapy tests/look_editor_smoke.py`: drives the Look Editor | 30/30: simple graph, ramp edits, previews; full graph: Blender's real 48-node tree, value edits, add a Mix node, Blender hides/shows its sockets when switched to Float, connect, undo/redo, save, a shot renders from the edited graph |
-| `blender -b --python tests/graph_roundtrip_blender.py` | every library look: node tree → JSON → rebuilt → identical JSON |
+| `mayapy tests/look_editor_smoke.py`: drives the Look Editor | 45/45: on-node scrub / type / settings, groups (Ctrl+G, Tab in/out, edit inside, ungroup), frames, reroutes, image path, auto-layout without overlaps, plus simple graph, ramp edits, previews; full graph: Blender's real 48-node tree, value edits, add a Mix node, Blender hides/shows its sockets when switched to Float, connect, undo/redo, save, a shot renders from the edited graph |
+| `blender -b --python tests/graph_roundtrip_blender.py` | every library look, plus a graph with a frame, a reroute and a node group: node tree → JSON → rebuilt → identical JSON |
 | `python3 -m unittest tests.test_graph_model` | node-graph editing rules: unique names, connect replaces, removing a node drops its links |
 | `python3 -m unittest tests.test_lookdefs` | every library look fits the template; old formats convert; save/load round-trips |
 | `mayapy tests/ui_smoke.py`: loads the plug-in and drives the real panel | 26/26: plug-in load/unload, style cards assign looks by name, per-object looks, Fix all, render a frame and a range through the background Blender job, viewer follows the timeline, image plane on the camera, Export MP4 |

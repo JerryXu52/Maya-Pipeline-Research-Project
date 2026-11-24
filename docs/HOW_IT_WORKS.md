@@ -86,6 +86,22 @@ A walk through every part, in the order the data flows. Each section says
   builds a field for every setting and unlinked input of the selected node.
 * **Rendering**: a look with a `graph` is built by `node_graph.material_for` from that graph;
   otherwise by the template builder.
+* **Node groups** live in `graph["groups"]` as `{interface, nodes, links}`; a group node
+  names its group. Blender builds every group datablock and interface first, then their
+  insides, then the material. Blender names group sockets itself (`Socket_0`, …), so ids
+  coming from Maya are mapped. Datablocks are named per look internally (`<material>::<group>`)
+  so two looks can each have a "NodeGroup"; the dump reports the look's own name.
+  `graph_model.make_group` turns crossing wires into group sockets; `ungroup` is its inverse
+  (tested: group then ungroup restores the exact wiring).
+* **Frames** are nodes others point to with `parent`; positions are absolute
+  (`location_absolute`), so moving in and out of frames never shifts a node. **Reroutes** are
+  `NodeReroute` nodes with sockets `Input` / `Output`.
+* **On-node editing**: a press on a value field starts a scrub (0.01 per pixel, Shift for
+  0.001); a press without movement opens a line edit over the field. Typed maths goes through
+  a tiny `ast` calculator (numbers and + − × ÷ only, never `eval`).
+* **Layout**: Blender's template graph comes with overlapping positions, so the first time it
+  is shown `graph_model.auto_layout` puts nodes in columns by distance from the output,
+  ordered by where their wires go, spaced by each node's drawn height.
 
 ## 1. Tagging looks (`toon_bridge/looks.py`)
 

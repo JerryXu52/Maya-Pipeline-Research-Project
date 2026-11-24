@@ -18,6 +18,7 @@ import maya.cmds as cmds  # noqa: E402
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path[:0] = [REPO, os.path.join(REPO, "demo")]
 from toon_bridge import look_editor, lookdefs  # noqa: E402
+from toon_bridge.graph_editor import HEAD, ROW  # noqa: E402
 
 ok = True
 
@@ -126,6 +127,10 @@ wait(ed.sync_job)
 g = ed.full.graph
 check("full graph: Blender's real pop_comic tree (48 nodes)", len(g["nodes"]) == 48 and len(g["links"]) == 58)
 check("full graph: every node drawn", len(ed.full.nodes) == 48)
+its = list(ed.full.nodes.values())
+overlaps = sum(1 for i, a in enumerate(its) for b in its[i + 1:]
+               if a.sceneBoundingRect().adjusted(6, 2, -6, -2).intersects(b.sceneBoundingRect().adjusted(6, 2, -6, -2)))
+check("template graph is laid out with no overlapping nodes", overlaps == 0)
 check("template graph is not the look's own yet", not ed.look().get("graph"))
 
 ed.full.scene().clearSelection()
@@ -135,6 +140,139 @@ pos_before = list(ed.full.graph["nodes"][0]["location"])
 ed.full.nodes[ed.full.graph["nodes"][0]["name"]].moveBy(30, 0)
 ed.full.changed.emit(False)
 check("only moving template nodes does not change the look", not ed.look().get("graph"))
+# ---------------------------------------------------------------- on-node editing, groups, frames, reroutes
+from PySide6 import QtGui, QtTest  # noqa: E402
+v = ed.full
+v.resize(900, 600)
+math_name = next(n["name"] for n in v.graph["nodes"] if n["type"] == "ShaderNodeMath" and
+                 any("value" in i and i["id"] not in {l[3] for l in v.graph["links"] if l[2] == n["name"]}
+                     for i in n["inputs"] if i.get("enabled")))
+item = v.nodes[math_name]
+v.resetTransform()
+v.centerOn(item)
+field = next(f for f in [item.field_at(item.mapToScene(QtCore.QPointF(item.w / 2, HEAD + i * ROW + ROW / 2.0)))
+                         for i in range(len(item.rows))] if f and f[0] == "input")
+sock = field[1]
+start = sock["value"]
+p0 = v.mapFromScene(field[2].center())
+
+
+def mouse(kind, pos, buttons=QtCore.Qt.LeftButton):
+    """A real QMouseEvent through the view's own handler (the view is never shown on screen,
+    so Qt would not deliver synthetic clicks to it)."""
+    t = {"press": QtCore.QEvent.MouseButtonPress, "move": QtCore.QEvent.MouseMove,
+         "release": QtCore.QEvent.MouseButtonRelease}[kind]
+    btn = QtCore.Qt.NoButton if kind == "move" else QtCore.Qt.LeftButton
+    ev = QtGui.QMouseEvent(t, QtCore.QPointF(pos), QtCore.QPointF(v.viewport().mapToGlobal(pos)), btn,
+                           buttons if kind != "release" else QtCore.Qt.NoButton, QtCore.Qt.NoModifier)
+    {"press": v.mousePressEvent, "move": v.mouseMoveEvent, "release": v.mouseReleaseEvent}[kind](ev)
+
+
+mouse("press", p0)
+for dx in (5, 20, 40):
+    mouse("move", p0 + QtCore.QPoint(dx, 0))
+mouse("release", p0 + QtCore.QPoint(40, 0))
+step = 0.01 if abs(start) < 10 else 0.1
+check("drag a number on the node scrubs it (%s -> %s)" % (start, sock["value"]), abs(sock["value"] - (start + 40 * step)) < 1e-3)
+mouse("press", p0)
+mouse("release", p0)
+check("click a number opens a field on the node", v._editor is not None)
+v._editor.setText("1/4")
+v._close_editor(commit=True)
+check("typing '1/4' on the node sets 0.25", abs(sock["value"] - 0.25) < 1e-9)
+v.edit_prop(item, "operation", "POWER")
+check("choose a setting on the node", gm.node(v.graph, math_name)["props"]["operation"]["value"] == "POWER")
+settle_then_preview(ed)
+
+m1, m2 = [n["name"] for n in v.graph["nodes"] if n["type"] == "ShaderNodeMath"][:2]
+v.scene().clearSelection()
+v.nodes[m1].setSelected(True)
+v.nodes[m2].setSelected(True)
+links_before = len(v.graph["links"])
+gnode = v.group_selected()
+settle_then_preview(ed)
+root = ed.look()["graph"]
+check("Ctrl+G: a node group with Blender's interface", gnode and "groups" in root and
+      len(root["groups"]["NodeGroup"]["interface"]) >= 2)
+v.scene().clearSelection()
+v.nodes[gnode].setSelected(True)
+v.keyPressEvent(QtGui.QKeyEvent(QtCore.QEvent.KeyPress, QtCore.Qt.Key_Tab, QtCore.Qt.NoModifier))
+check("Tab enters the group", v.path == ["NodeGroup"] and "Group Input" in v.nodes and "Group Output" in v.nodes)
+inner = v.add_node("ShaderNodeValue", QtCore.QPointF(0, 300))
+v.edit_value(v.nodes[inner], "outputs", "Value", 0.75)
+settle_then_preview(ed)
+check("add + edit a node inside the group survives Blender's rebuild",
+      gm.socket(gm.node(ed.look()["graph"]["groups"]["NodeGroup"], inner), "outputs", "Value")["value"] == 0.75)
+v.scene().clearSelection()
+v.nodes[inner].setSelected(True)
+v.delete_selected()
+settle_then_preview(ed)
+v.keyPressEvent(QtGui.QKeyEvent(QtCore.QEvent.KeyPress, QtCore.Qt.Key_Tab, QtCore.Qt.NoModifier))
+check("Tab leaves the group", v.path == [] and gnode in v.nodes)
+v.scene().clearSelection()
+v.nodes[gnode].setSelected(True)
+v.ungroup_selected()
+settle_then_preview(ed)
+check("Ctrl+Alt+G ungroups and rewires", "groups" not in ed.look()["graph"] and
+      len(ed.look()["graph"]["links"]) == links_before)
+
+names = [n["name"] for n in v.graph["nodes"] if n["name"].startswith("TB ")][:3]
+v.scene().clearSelection()
+for n in names:
+    v.nodes[n].setSelected(True)
+frame = v.frame_selected()
+settle_then_preview(ed)
+check("Ctrl+J frames nodes, Blender keeps them framed",
+      sorted(n["name"] for n in gm.children(ed.look()["graph"], frame)) == sorted(names))
+link = next(l for l in v.graph["links"] if l[2] == "TB Emission")
+rr = v.insert_reroute(link, QtCore.QPointF(0, 0))
+settle_then_preview(ed)
+g = ed.look()["graph"]
+check("reroute on a wire keeps the connection", gm.node(g, rr) and [rr, "Output", link[2], link[3]] in g["links"])
+
+img = gm.add_node(v.graph, "ShaderNodeTexImage", (0, -600))
+v.set_graph(v.root, keep_view=True)
+ed.node_inspector.show_node(img)
+tex = os.path.join(REPO, "demo", "textures", "windows_teal.png")
+line = next(w for w in ed.node_inspector.findChildren(QtWidgets.QLineEdit) if w.placeholderText() == "no image")
+line.setText(tex)
+line.editingFinished.emit()
+check("image path set from the inspector", gm.node(v.graph, img)["image"] == tex)
+check("image shown on the node", any(r[0] == "image" and r[1] == tex for r in v.nodes[img].rows))
+settle_then_preview(ed)
+ed.save()
+saved = json.load(open(lib))
+from toon_bridge import exporter, launcher  # noqa: E402
+from toon_bridge import preflight as _pf  # noqa: E402
+for r in _pf.run_all(camera="shotCam"):
+    if r.fix and r.status != "ok":
+        r.fix()
+looks_file2 = os.path.join(tmp, "looks_for_render2.json")
+json.dump(saved, open(looks_file2, "w"))
+cmds.currentTime(40)
+shot = exporter.export_shot("shotCam", 40, 40, os.path.join(tmp, "graph_shot2"), looks_file=looks_file2)
+code, lines = launcher.run_blocking(launcher.build_command(shot, preview=True))
+warns = [l for l in lines if "WARN graph" in l]
+check("a shot renders with frame + reroute + image node (no graph warnings)", code == 0 and not warns)
+if warns:
+    print("\n".join(warns[:5]))
+
+if "--shot3" in sys.argv:
+    dst = os.path.join(REPO, sys.argv[sys.argv.index("--shot3") + 1])
+    v.scene().clearSelection()
+    v.nodes[m1 if m1 in v.nodes else math_name].setSelected(True)
+    gn2 = v.group_selected()
+    settle_then_preview(ed)
+    v.scene().clearSelection()
+    if frame in v.frames:
+        v.frames[frame].setSelected(True)
+    ed.layout().activate()
+    v.resetTransform()
+    v.scale(0.7, 0.7)
+    v.centerOn(v.frames[frame] if frame in v.frames else v.nodes[gn2])
+    ed.grab().save(dst)
+    print("SHOT3", dst, flush=True)
+
 if "--shot2" in sys.argv:
     dst = os.path.join(REPO, sys.argv[sys.argv.index("--shot2") + 1])
     ed.full.scene().clearSelection()
@@ -179,7 +317,7 @@ settle_then_preview(ed)
 
 ed.save()
 saved = json.load(open(lib))
-check("save keeps the full graph", "graph" in saved["pop_comic"] and len(saved["pop_comic"]["graph"]["nodes"]) == 49)
+check("save keeps the full graph", "graph" in saved["pop_comic"] and len(saved["pop_comic"]["graph"]["nodes"]) >= 49)
 
 from toon_bridge import exporter, launcher  # noqa: E402
 looks_file = os.path.join(tmp, "looks_for_render.json")

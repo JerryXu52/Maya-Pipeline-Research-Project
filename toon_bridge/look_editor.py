@@ -24,6 +24,7 @@ except ImportError:
     from PySide2 import QtCore, QtGui, QtWidgets
 
 from . import exporter, launcher, lookdefs
+from . import graph_model as gm
 from .ui import QSS, ACCENT, Combo, DoubleSpinBox, SpinBox, segmented
 
 WINDOW = "toonBridgeLookEditor"
@@ -432,6 +433,9 @@ def summary(key, lk):
 # ---------------------------------------------------------------- the window
 class LookEditor(MayaQWidgetDockableMixin, QtWidgets.QWidget):
     saved = QtCore.Signal()
+    FULL_HINT = ("The real EEVEE node tree. Drag a number on a node to scrub it, click it to type. Drag from an "
+                 "output to an input to connect. Right-click or Shift+A adds nodes; Ctrl+G groups, Tab enters a "
+                 "group, Ctrl+J frames; right-click a wire for a reroute. X deletes, F frames all, Ctrl+Z undoes.")
 
     def __init__(self, looks_path=LOOKS_JSON, parent=None):
         super().__init__(parent)
@@ -486,6 +490,8 @@ class LookEditor(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.full = GraphView()
         self.full.changed.connect(self._full_changed)
         self.full.nodeSelected.connect(lambda n: self.node_inspector.show_node(n))
+        self.full.nodeEdited.connect(lambda n: n == self.node_inspector.name and self.node_inspector.show_node(n))
+        self.full.pathChanged.connect(self._path_changed)
         self.stack.addWidget(self.graph)
         self.stack.addWidget(self.full)
         mid.addWidget(self.stack, 1)
@@ -659,9 +665,7 @@ class LookEditor(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.stack.setCurrentIndex(1 if full else 0)
         self.right_stack.setCurrentIndex(1 if full else 0)
         self.hint_lbl.setText(
-            "The real EEVEE node tree. Drag from an output to an input to connect; right-click or Shift+A to add "
-            "a node; X deletes; wheel zooms; middle-drag or Alt+drag pans; F frames all; Ctrl+Z undoes."
-            if full else "Click a node to edit it. The dot in a node's header switches it on or off.")
+            self.FULL_HINT if full else "Click a node to edit it. The dot in a node's header switches it on or off.")
         if full:
             self._load_full_graph()
         self._update_banner()
@@ -692,7 +696,7 @@ class LookEditor(MayaQWidgetDockableMixin, QtWidgets.QWidget):
     def _full_changed(self, structural=True):
         if not structural and not self.look().get("graph"):
             return      # only moved nodes of Blender's template graph: the look itself is unchanged
-        self.look()["graph"] = self.full.graph
+        self.look()["graph"] = self.full.root
         self._graph_version += 1
         self._update_banner()
         self._changed(preview=False)
@@ -736,9 +740,13 @@ class LookEditor(MayaQWidgetDockableMixin, QtWidgets.QWidget):
                 self.status("Blender: %s" % p)
             canonical = data["graph"]
             if self.full_mode and version == self._graph_version and (adopt or self.look().get("graph")):
-                before = self._structure(self.full.graph)
+                before = self._structure(self.full.root)
                 if self.look().get("graph"):
                     self.look()["graph"] = canonical
+                elif adopt:
+                    # Blender's template positions overlap: lay it out readably the first time it's shown
+                    for lvl in [canonical] + [g for g in (canonical.get("groups") or {}).values() if g]:
+                        gm.auto_layout(lvl)
                 self.full.set_graph(canonical, keep_view=not adopt)
                 if self._structure(canonical) != before:
                     self.node_inspector.show_node(self.node_inspector.name or "")
@@ -750,8 +758,17 @@ class LookEditor(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 
     @staticmethod
     def _structure(graph):
+        levels = [graph] + [g for g in (graph.get("groups") or {}).values() if g]
         return [(n["name"], [(s["id"], s.get("enabled")) for s in n.get("inputs", []) + n.get("outputs", [])],
-                 sorted(n.get("props", {}))) for n in graph.get("nodes", [])]
+                 sorted(n.get("props", {}))) for lvl in levels for n in lvl.get("nodes", [])]
+
+    def _path_changed(self, path):
+        self.node_inspector.show_node("")
+        if path:
+            self.hint_lbl.setText("Inside node group  %s  ›  %s.   Tab or right-click → Leave group to go back."
+                                  % (self.name, "  ›  ".join(path)))
+        else:
+            self.hint_lbl.setText(self.FULL_HINT)
 
     # ------------------------------------------------------------ right side
     def _build_right(self):
