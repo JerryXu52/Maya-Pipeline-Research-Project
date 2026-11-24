@@ -1,50 +1,57 @@
-"""Drag this file into a Maya viewport to install Toon Bridge.
+"""Drag this file into a Maya viewport to install Toon Bridge as a plug-in.
 
-It adds this repo to Maya's Python path (now and on every start, through a
-small line in userSetup.py) and puts a "Toon" button on the current shelf.
-Nothing is copied: the tool runs from this folder, so `git pull` updates it.
+What it does (once):
+  * writes a module file (toonBridge.mod) into your Maya modules folder, so Maya
+    finds the plug-in and its Python code in this repo on every start;
+  * loads plug-ins/toonBridge.py now and ticks Auto load in the Plug-in Manager;
+  * adds a 'Toon Bridge' menu to the main menu bar and opens the panel.
+Nothing is copied: Maya runs the tool from this folder, so `git pull` updates it.
+Uninstall: untick the plug-in in the Plug-in Manager and delete toonBridge.mod.
 """
 import os
 import sys
 
 REPO = os.path.dirname(os.path.abspath(__file__))
-MARK = "# toon_bridge path"
+PLUGIN = os.path.join(REPO, "plug-ins", "toonBridge.py")
+OLD_MARK = "# toon_bridge path"
 
 
-def _add_user_setup():
+def _modules_dir():
     import maya.cmds as cmds
-    scripts = cmds.internalVar(userScriptDir=True)
-    path = os.path.join(scripts, "userSetup.py")
-    line = "import sys; sys.path.append(%r)  %s\n" % (REPO, MARK)
-    text = open(path).read() if os.path.isfile(path) else ""
-    if MARK in text:
-        text = "".join(l for l in text.splitlines(True) if MARK not in l)
+    d = os.path.join(cmds.internalVar(userAppDir=True), "modules")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _write_module():
+    path = os.path.join(_modules_dir(), "toonBridge.mod")
     with open(path, "w") as f:
-        f.write(text + line)
+        f.write("+ ToonBridge 1.0 %s\n" % REPO)
+        f.write("PYTHONPATH +:= .\n")       # so 'import toon_bridge' works
+        f.write("MAYA_PLUG_IN_PATH +:= plug-ins\n")
     return path
 
 
-def _add_shelf_button():
+def _remove_old_install():
+    """Earlier versions added a userSetup.py line and a shelf button; tidy them up."""
     import maya.cmds as cmds
-    import maya.mel as mel
-    shelf_top = mel.eval("$tmp = $gShelfTopLevel")
-    shelf = cmds.tabLayout(shelf_top, query=True, selectTab=True)
-    for b in cmds.shelfLayout(shelf, query=True, childArray=True) or []:
-        if cmds.shelfButton(b, query=True, exists=True) and \
-                cmds.shelfButton(b, query=True, label=True) == "ToonBridge":
-            cmds.deleteUI(b)
-    cmds.shelfButton(parent=shelf, label="ToonBridge", imageOverlayLabel="Toon",
-                     image="render.png", annotation="Toon Bridge: render with Blender EEVEE",
-                     sourceType="python",
-                     command="import toon_bridge.ui as tb; tb.show()")
-    return shelf
+    us = os.path.join(cmds.internalVar(userScriptDir=True), "userSetup.py")
+    if os.path.isfile(us):
+        text = open(us).read()
+        if OLD_MARK in text:
+            with open(us, "w") as f:
+                f.write("".join(l for l in text.splitlines(True) if OLD_MARK not in l))
 
 
 def onMayaDroppedPythonFile(*_):
+    import maya.cmds as cmds
     if REPO not in sys.path:
         sys.path.append(REPO)
-    us = _add_user_setup()
-    shelf = _add_shelf_button()
-    import toon_bridge.ui as tb
-    tb.show()
-    print("Toon Bridge installed: path added to %s, button on shelf '%s'." % (us, shelf))
+    mod = _write_module()
+    _remove_old_install()
+    if not cmds.pluginInfo(PLUGIN, query=True, loaded=True):
+        cmds.loadPlugin(PLUGIN)
+    cmds.pluginInfo(PLUGIN, edit=True, autoload=True)
+    cmds.toonBridge(open=True)
+    cmds.inViewMessage(amg="Toon Bridge installed: see the <hl>Toon Bridge</hl> menu", pos="topCenter", fade=True)
+    print("Toon Bridge installed. Module: %s. Plug-in loaded and set to auto load." % mod)
