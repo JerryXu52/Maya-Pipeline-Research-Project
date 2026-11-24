@@ -132,7 +132,7 @@ blender -b --python blender/build_library.py -- --sheet docs/images/look_sheet.p
 | Check | Result |
 |---|---|
 | `python3 -m unittest discover tests` (conversion maths) | 6/6 pass |
-| `blender -b --factory-startup --python tests/test_light_match.py` | Maya intensity 1.0/0.5/1.5 → Blender 0.500/0.400/0.600, the same as Maya's Lambert result to 3 decimals |
+| `blender -b --factory-startup --python tests/light_match_blender.py` | Maya intensity 1.0/0.5/1.5 → Blender 0.500/0.400/0.600, the same as Maya's Lambert result to 3 decimals |
 | `mayapy tests/camera_match.py 36`: Maya Software vs Blender, same frame | **99.20%** of pixels agree on object vs background; the rest are 1-px antialiased edges ([image](docs/images/camera_match_36.png)) |
 | `mayapy tests/run_end_to_end.py --all` | 72/72 frames, 1280×720, rendered in 35 s; PASS |
 | Pre-flight test with planted problems (duplicate name, unknown look, mirrored mesh) | all found; fixes resolved name/look errors |
@@ -229,7 +229,7 @@ tested on my own skinned demo character.
 toon_bridge/   Maya package: ui.py, looks.py, preflight.py, exporter.py, launcher.py, convert.py
 blender/       render.py, toon_materials.py, build_library.py, looks.json, look_library.blend
 demo/          make_demo_scene.py, toon_demo.ma, make_video.py
-tests/         test_convert.py, test_light_match.py, camera_match.py, run_end_to_end.py, ui_smoke.py, stress_scenes.py
+tests/         test_convert.py, light_match_blender.py, camera_match.py, run_end_to_end.py, ui_smoke.py, stress_scenes.py
 docs/          HOW_IT_WORKS.md, PROPOSAL.md (original), images/, video/
 drag_into_maya.py   installer
 ```

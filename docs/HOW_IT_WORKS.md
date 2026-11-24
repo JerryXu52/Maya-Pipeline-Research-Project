@@ -95,7 +95,7 @@ Pure Python (no `maya`, no `bpy`), so Maya, Blender and the unit tests all use t
   comparing the film aspect with the image aspect.
 * **Sun strength = π × intensity.** A Maya Lambert lit head-on by intensity
   *I* returns colour × *I*. Blender's diffuse BSDF returns colour × strength / π.
-  `tests/test_light_match.py` renders this in EEVEE: 0.500 vs 0.500, 0.400 vs 0.400, 0.600 vs 0.600.
+  `tests/light_match_blender.py` renders this in EEVEE: 0.500 vs 0.500, 0.400 vs 0.400, 0.600 vs 0.600.
 * Point/spot power is approximate (Maya's "no decay" has no physical equivalent),
   and pre-flight warns about it.
 
@@ -203,7 +203,7 @@ frames arrive. "Open .blend in Blender" opens the exact scene that was rendered.
 | Test | Runs in | What it proves |
 |---|---|---|
 | `test_convert.py` | any Python | axis, units, matrix layout, film fit, sun formula |
-| `test_light_match.py` | Blender | sun strength = π × intensity gives Maya's brightness (exact to 3 decimals) |
+| `light_match_blender.py` | Blender | sun strength = π × intensity gives Maya's brightness (exact to 3 decimals) |
 | `camera_match.py` | mayapy | same frame in Maya Software vs Blender: 99.20% of pixels agree on foreground/background |
 | `ui_smoke.py` | mayapy | the real panel: assign, preview, pre-flight, Render Current Frame via QProcess, viewer (13/13) |
 | `run_end_to_end.py` | mayapy | build demo → pre-flight → export → Blender → every frame exists, right size, not blank |

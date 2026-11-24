@@ -6,7 +6,9 @@ Uses the same ToonBridgePanel class as the GUI (not shown as a dock: there is
 no Maya main window in mayapy). Renders frame 36 through the QProcess path and
 waits for the finished signal.
 """
+import faulthandler
 import os
+faulthandler.enable()
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

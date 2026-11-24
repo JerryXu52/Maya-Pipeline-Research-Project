@@ -483,10 +483,13 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         else:
             start, end = self.start_spin.value(), self.end_spin.value()
         preview = self.quality_combo.currentIndex() == 1
+        # No QApplication.processEvents() here: pumping Qt events while Maya is
+        # mid-command crashed Maya intermittently (bisected in tests/ui_smoke.py).
         self.status("Exporting frames %d-%d..." % (start, end))
-        QtWidgets.QApplication.processEvents()
+        gui = not cmds.about(batch=True)     # waitCursor is GUI-only; it can crash headless Maya
         try:
-            cmds.waitCursor(state=True)
+            if gui:
+                cmds.waitCursor(state=True)
             objects = cmds.ls(selection=True, long=True) if self.sel_only_chk.isChecked() else None
             if self.sel_only_chk.isChecked() and not objects:
                 self.status("'Only selected objects' is on, but nothing is selected.")
@@ -496,7 +499,8 @@ class ToonBridgePanel(MayaQWidgetDockableMixin, QtWidgets.QWidget):
             self.status("Export failed: %s" % exc)
             return
         finally:
-            cmds.waitCursor(state=False)
+            if gui:
+                cmds.waitCursor(state=False)
         self.last_shot_dir = shot_dir
         cmd = launcher.build_command(shot, preview=preview, blender=self.blender_edit.text() or None)
         self.job = launcher.BlenderJob(cmd, self)

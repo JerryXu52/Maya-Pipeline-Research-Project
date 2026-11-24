@@ -1,4 +1,4 @@
-"""Light-unit check, run in Blender:  blender -b --factory-startup --python tests/test_light_match.py
+"""Light-unit check, run in Blender:  blender -b --factory-startup --python tests/light_match_blender.py
 
 A Maya Lambert (diffuse 1) lit head-on by a directional light of intensity I
 renders colour * I. This builds the same setup in EEVEE with a plain Diffuse
